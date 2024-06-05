@@ -1,3 +1,4 @@
+pub mod enumeration;
 pub mod graph;
 
 pub fn add(left: usize, right: usize) -> usize {
