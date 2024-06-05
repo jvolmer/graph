@@ -1,3 +1,9 @@
+#[derive(Debug, PartialEq, Clone)]
+pub struct VertexId(pub usize);
+
+#[derive(Debug, PartialEq)]
+struct Edge(VertexId, VertexId);
+
 #[derive(Debug, PartialEq)]
 pub struct Graph {
     edges: Vec<Edge>,
@@ -11,13 +17,11 @@ impl Graph {
                 .collect(),
         }
     }
+
+    pub fn out_neighbors<'a>(&'a self, vertex: &'a VertexId) -> impl Iterator<Item = &'a VertexId> {
+        self.edges.iter().filter(|e| e.0 == *vertex).map(|e| &e.1)
+    }
 }
-
-#[derive(Debug, PartialEq)]
-pub struct VertexId(pub usize);
-
-#[derive(Debug, PartialEq)]
-struct Edge(VertexId, VertexId);
 
 #[cfg(test)]
 mod tests {
@@ -34,6 +38,17 @@ mod tests {
                     Edge(VertexId(1), VertexId(1))
                 ]
             }
+        );
+    }
+
+    #[test]
+    fn gets_out_neighbors() {
+        let graph = Graph::from(vec![(0, 0), (0, 1), (0, 1), (0, 2), (1, 4)]);
+        assert_eq!(
+            graph
+                .out_neighbors(&VertexId(0))
+                .collect::<Vec<&VertexId>>(),
+            vec![&VertexId(0), &VertexId(1), &VertexId(1), &VertexId(2)]
         );
     }
 }
