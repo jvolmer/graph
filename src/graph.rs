@@ -33,6 +33,10 @@ impl Graph {
     pub fn out_neighbors<'a>(&'a self, vertex: &'a VertexId) -> impl Iterator<Item = &'a VertexId> {
         self.edges.iter().filter(|e| e.0 == *vertex).map(|e| &e.1)
     }
+
+    pub fn contains(&self, vertex: &VertexId) -> bool {
+        self.vertex_count > vertex.0
+    }
 }
 
 #[cfg(test)]
