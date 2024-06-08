@@ -1,4 +1,4 @@
-pub mod enumeration;
+pub mod algorithms;
 pub mod graph;
 
 pub fn add(left: usize, right: usize) -> usize {
