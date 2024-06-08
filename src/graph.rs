@@ -8,30 +8,34 @@ struct Edge(VertexId, VertexId);
 pub struct Graph {
     vertex_count: usize,
     edges: Vec<Edge>,
+    out_index: Vec<Vec<VertexId>>,
 }
 impl Graph {
     pub fn from(vertex_count: usize, edges: Vec<(usize, usize)>) -> Result<Self, String> {
-        edges
+        let mut out_index: Vec<Vec<VertexId>> = vec![vec![]; vertex_count];
+        let edges = edges
             .into_iter()
             .map(|(from, to)| {
                 if vertex_count > from && vertex_count > to {
-                    Ok(Edge(VertexId(from), VertexId(to)))
+                    let (from, to) = (VertexId(from), VertexId(to));
+                    out_index[from.0].push(to.clone());
+                    Ok(Edge(from, to))
                 } else {
                     Err("Dangling edges are not allowed".to_string())
                 }
             })
-            .collect::<Result<Vec<Edge>, String>>()
-            .and_then(|edges| {
-                Ok(Self {
-                    vertex_count,
-                    edges,
-                })
+            .collect::<Result<Vec<Edge>, String>>();
+        edges.and_then(|edges| {
+            Ok(Self {
+                vertex_count,
+                edges,
+                out_index,
             })
+        })
     }
 
-    // TODO can be done more efficiently when using an index (has to only be computed once)
     pub fn out_neighbors<'a>(&'a self, vertex: &'a VertexId) -> impl Iterator<Item = &'a VertexId> {
-        self.edges.iter().filter(|e| e.0 == *vertex).map(|e| &e.1)
+        self.out_index.get(vertex.0).unwrap().iter()
     }
 
     pub fn contains(&self, vertex: &VertexId) -> bool {
@@ -53,6 +57,14 @@ mod tests {
                     Edge(VertexId(0), VertexId(1)),
                     Edge(VertexId(4), VertexId(5)),
                     Edge(VertexId(1), VertexId(1))
+                ],
+                out_index: vec![
+                    vec![VertexId(1)],
+                    vec![VertexId(1)],
+                    vec![],
+                    vec![],
+                    vec![VertexId(5)],
+                    vec![]
                 ]
             }
         );
