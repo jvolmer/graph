@@ -12,7 +12,7 @@ impl<'a> BreadthFirst<'a> {
             Self {
                 graph,
                 queue: VecDeque::from(vec![start.clone()]),
-                explored: HashSet::from([start; 0]),
+                explored: HashSet::new(),
             }
         } else {
             Self {

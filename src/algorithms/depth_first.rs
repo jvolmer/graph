@@ -12,7 +12,7 @@ impl<'a> DepthFirst<'a> {
             Self {
                 graph,
                 queue: vec![start.clone()],
-                explored: HashSet::from([start; 0]),
+                explored: HashSet::new(),
             }
         } else {
             Self {
