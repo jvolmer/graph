@@ -1,2 +1,2 @@
-pub mod enumeration;
-pub mod full_enumeration;
+pub mod graph_enumeration;
+pub mod tree_enumeration;

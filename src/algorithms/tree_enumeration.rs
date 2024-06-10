@@ -1,13 +1,12 @@
 use crate::graph::{Graph, VertexId};
 use std::collections::{HashSet, VecDeque};
 
-// TODO rename to TreeEnumeration
-pub struct Enumeration<'a, E> {
+pub struct TreeEnumeration<'a, E> {
     graph: &'a Graph,
     next: E,
     explored: HashSet<VertexId>,
 }
-impl<'a, E> Enumeration<'a, E>
+impl<'a, E> TreeEnumeration<'a, E>
 where
     E: Next,
 {
@@ -31,7 +30,7 @@ where
     }
 }
 
-impl<'a, E> Iterator for Enumeration<'a, E>
+impl<'a, E> Iterator for TreeEnumeration<'a, E>
 where
     E: Next,
 {
@@ -74,7 +73,7 @@ impl Next for Queue {
         self.0.pop_back()
     }
 }
-pub type BreadthFirst<'a> = Enumeration<'a, Queue>;
+pub type BreadthFirst<'a> = TreeEnumeration<'a, Queue>;
 pub struct Stack(Vec<VertexId>);
 impl Next for Stack {
     fn new() -> Self {
@@ -90,7 +89,7 @@ impl Next for Stack {
         self.0.pop()
     }
 }
-pub type DepthFirst<'a> = Enumeration<'a, Stack>;
+pub type DepthFirst<'a> = TreeEnumeration<'a, Stack>;
 
 #[cfg(test)]
 mod tests {
