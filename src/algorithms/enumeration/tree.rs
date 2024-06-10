@@ -1,5 +1,7 @@
+use std::collections::HashSet;
+
+use super::buffer;
 use crate::graph::{Graph, VertexId};
-use std::collections::{HashSet, VecDeque};
 
 pub struct TreeEnumeration<'a, E> {
     graph: &'a Graph,
@@ -8,7 +10,7 @@ pub struct TreeEnumeration<'a, E> {
 }
 impl<'a, E> TreeEnumeration<'a, E>
 where
-    E: Next,
+    E: buffer::Buffer,
 {
     pub fn on(graph: &'a Graph, start: VertexId) -> Self {
         if graph.contains(&start) {
@@ -32,7 +34,7 @@ where
 
 impl<'a, E> Iterator for TreeEnumeration<'a, E>
 where
-    E: Next,
+    E: buffer::Buffer,
 {
     type Item = VertexId;
 
@@ -52,44 +54,8 @@ where
     }
 }
 
-pub trait Next {
-    fn new() -> Self;
-    fn start(vertex: VertexId) -> Self;
-    fn push(&mut self, vertex: VertexId);
-    fn pop(&mut self) -> Option<VertexId>;
-}
-pub struct Queue(VecDeque<VertexId>);
-impl Next for Queue {
-    fn new() -> Self {
-        Self(VecDeque::new())
-    }
-    fn start(vertex: VertexId) -> Self {
-        Self(VecDeque::from(vec![vertex]))
-    }
-    fn push(&mut self, vertex: VertexId) {
-        self.0.push_front(vertex);
-    }
-    fn pop(&mut self) -> Option<VertexId> {
-        self.0.pop_back()
-    }
-}
-pub type BreadthFirst<'a> = TreeEnumeration<'a, Queue>;
-pub struct Stack(Vec<VertexId>);
-impl Next for Stack {
-    fn new() -> Self {
-        Self(Vec::new())
-    }
-    fn start(vertex: VertexId) -> Self {
-        Self(vec![vertex])
-    }
-    fn push(&mut self, vertex: VertexId) {
-        self.0.push(vertex);
-    }
-    fn pop(&mut self) -> Option<VertexId> {
-        self.0.pop()
-    }
-}
-pub type DepthFirst<'a> = TreeEnumeration<'a, Stack>;
+pub type BreadthFirst<'a> = TreeEnumeration<'a, buffer::Queue>;
+pub type DepthFirst<'a> = TreeEnumeration<'a, buffer::Stack>;
 
 #[cfg(test)]
 mod tests {

@@ -1,9 +1,9 @@
 use crate::graph::{Graph, VertexId};
 use std::{collections::HashSet, mem};
 
-use super::tree_enumeration::{Next, Queue, Stack, TreeEnumeration};
+use super::{buffer, tree::TreeEnumeration};
 
-struct GraphEnumeration<'a, N> {
+pub struct GraphEnumeration<'a, N> {
     graph: &'a Graph,
     enumeration: TreeEnumeration<'a, N>,
     vertices: Box<dyn Iterator<Item = VertexId>>,
@@ -11,7 +11,7 @@ struct GraphEnumeration<'a, N> {
 }
 impl<'a, N> GraphEnumeration<'a, N>
 where
-    N: Next,
+    N: buffer::Buffer,
 {
     fn on(graph: &'a Graph) -> Self {
         let mut vertices = graph.vertices();
@@ -42,7 +42,7 @@ where
 
 impl<'a, N> Iterator for GraphEnumeration<'a, N>
 where
-    N: Next,
+    N: buffer::Buffer,
 {
     type Item = VertexId;
 
@@ -65,8 +65,8 @@ where
         }
     }
 }
-pub type GraphBreadthFirst<'a> = GraphEnumeration<'a, Queue>;
-pub type GraphDepthFirst<'a> = GraphEnumeration<'a, Stack>;
+pub type GraphBreadthFirst<'a> = GraphEnumeration<'a, buffer::Queue>;
+pub type GraphDepthFirst<'a> = GraphEnumeration<'a, buffer::Stack>;
 
 #[cfg(test)]
 mod tests {
