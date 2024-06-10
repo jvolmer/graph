@@ -1,28 +1,30 @@
-use crate::{
-    algorithms::tree_enumeration::BreadthFirst,
-    graph::{Graph, VertexId},
-};
+use crate::graph::{Graph, VertexId};
 use std::{collections::HashSet, mem};
 
-struct GraphEnumeration<'a> {
+use super::tree_enumeration::{Next, Queue, Stack, TreeEnumeration};
+
+struct GraphEnumeration<'a, N> {
     graph: &'a Graph,
-    enumeration: BreadthFirst<'a>,
+    enumeration: TreeEnumeration<'a, N>,
     vertices: Box<dyn Iterator<Item = VertexId>>,
     explored: HashSet<VertexId>,
 }
-impl<'a> GraphEnumeration<'a> {
+impl<'a, N> GraphEnumeration<'a, N>
+where
+    N: Next,
+{
     fn on(graph: &'a Graph) -> Self {
         let mut vertices = graph.vertices();
         match vertices.next() {
             None => Self {
                 graph,
-                enumeration: BreadthFirst::on(graph, VertexId(0)),
+                enumeration: TreeEnumeration::on(graph, VertexId(0)),
                 vertices: Box::new(vertices),
                 explored: HashSet::new(),
             },
             Some(v) => Self {
                 graph,
-                enumeration: BreadthFirst::on(graph, v),
+                enumeration: TreeEnumeration::on(graph, v),
                 vertices: Box::new(vertices),
                 explored: HashSet::new(),
             },
@@ -30,13 +32,18 @@ impl<'a> GraphEnumeration<'a> {
     }
 
     fn start_new_tree(&mut self, vertex: VertexId) {
-        let old_enumeration =
-            mem::replace(&mut self.enumeration, BreadthFirst::on(self.graph, vertex));
+        let old_enumeration = mem::replace(
+            &mut self.enumeration,
+            TreeEnumeration::on(self.graph, vertex),
+        );
         self.explored.extend(old_enumeration.explored());
     }
 }
 
-impl<'a> Iterator for GraphEnumeration<'a> {
+impl<'a, N> Iterator for GraphEnumeration<'a, N>
+where
+    N: Next,
+{
     type Item = VertexId;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -58,6 +65,8 @@ impl<'a> Iterator for GraphEnumeration<'a> {
         }
     }
 }
+pub type GraphBreadthFirst<'a> = GraphEnumeration<'a, Queue>;
+pub type GraphDepthFirst<'a> = GraphEnumeration<'a, Stack>;
 
 #[cfg(test)]
 mod tests {
@@ -67,7 +76,7 @@ mod tests {
     fn does_not_find_anything_on_empty_graph() {
         let graph = Graph::from(0, vec![]).unwrap();
         assert_eq!(
-            GraphEnumeration::on(&graph)
+            GraphBreadthFirst::on(&graph)
                 .into_iter()
                 .collect::<Vec<VertexId>>(),
             vec![]
@@ -78,7 +87,7 @@ mod tests {
     fn finds_sole_vertex() {
         let graph = Graph::from(1, vec![]).unwrap();
         assert_eq!(
-            GraphEnumeration::on(&graph)
+            GraphBreadthFirst::on(&graph)
                 .into_iter()
                 .collect::<Vec<VertexId>>(),
             vec![VertexId(0)]
@@ -89,7 +98,7 @@ mod tests {
     fn iterates_vertices() {
         let graph = Graph::from(2, vec![(0, 1)]).unwrap();
         assert_eq!(
-            GraphEnumeration::on(&graph)
+            GraphBreadthFirst::on(&graph)
                 .into_iter()
                 .collect::<Vec<VertexId>>(),
             vec![VertexId(0), VertexId(1)]
@@ -100,7 +109,7 @@ mod tests {
     fn iterates_over_unconnected_components() {
         let graph = Graph::from(4, vec![]).unwrap();
         assert_eq!(
-            GraphEnumeration::on(&graph)
+            GraphBreadthFirst::on(&graph)
                 .into_iter()
                 .collect::<Vec<VertexId>>(),
             vec![VertexId(0), VertexId(1), VertexId(2), VertexId(3)]
@@ -111,7 +120,7 @@ mod tests {
     fn iterates_over_each_component_breadth_first() {
         let graph = Graph::from(5, vec![(0, 1), (0, 2), (3, 4)]).unwrap();
         assert_eq!(
-            GraphEnumeration::on(&graph)
+            GraphBreadthFirst::on(&graph)
                 .into_iter()
                 .collect::<Vec<VertexId>>(),
             vec![
@@ -128,7 +137,7 @@ mod tests {
     fn iterates_over_each_component_in_edge_direction_first() {
         let graph = Graph::from(3, vec![(0, 1), (2, 0)]).unwrap();
         assert_eq!(
-            GraphEnumeration::on(&graph)
+            GraphBreadthFirst::on(&graph)
                 .into_iter()
                 .collect::<Vec<VertexId>>(),
             vec![VertexId(0), VertexId(1), VertexId(2),]
@@ -139,7 +148,7 @@ mod tests {
     fn finds_each_vertex_in_a_loop_once() {
         let graph = Graph::from(2, vec![(0, 1), (1, 0)]).unwrap();
         assert_eq!(
-            GraphEnumeration::on(&graph)
+            GraphBreadthFirst::on(&graph)
                 .into_iter()
                 .collect::<Vec<VertexId>>(),
             vec![VertexId(0), VertexId(1),]
