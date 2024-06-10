@@ -41,6 +41,11 @@ impl Graph {
     pub fn contains(&self, vertex: &VertexId) -> bool {
         self.vertex_count > vertex.0
     }
+
+    // TODO should return &VertexId
+    pub fn vertices(&self) -> impl Iterator<Item = VertexId> {
+        (0..self.vertex_count).map(|v| VertexId(v))
+    }
 }
 
 #[cfg(test)]

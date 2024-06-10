@@ -1,7 +1,8 @@
 use crate::graph::{Graph, VertexId};
 use std::collections::{HashSet, VecDeque};
 
-struct Enumeration<'a, E> {
+// TODO rename to TreeEnumeration
+pub struct Enumeration<'a, E> {
     graph: &'a Graph,
     next: E,
     explored: HashSet<VertexId>,
@@ -10,7 +11,7 @@ impl<'a, E> Enumeration<'a, E>
 where
     E: Next,
 {
-    fn on(graph: &'a Graph, start: VertexId) -> Self {
+    pub fn on(graph: &'a Graph, start: VertexId) -> Self {
         if graph.contains(&start) {
             Self {
                 graph,
@@ -24,6 +25,9 @@ where
                 explored: HashSet::new(),
             }
         }
+    }
+    pub fn explored(self) -> HashSet<VertexId> {
+        self.explored
     }
 }
 
@@ -49,13 +53,13 @@ where
     }
 }
 
-trait Next {
+pub trait Next {
     fn new() -> Self;
     fn start(vertex: VertexId) -> Self;
     fn push(&mut self, vertex: VertexId);
     fn pop(&mut self) -> Option<VertexId>;
 }
-struct Queue(VecDeque<VertexId>);
+pub struct Queue(VecDeque<VertexId>);
 impl Next for Queue {
     fn new() -> Self {
         Self(VecDeque::new())
@@ -70,8 +74,8 @@ impl Next for Queue {
         self.0.pop_back()
     }
 }
-type BreadthFirst<'a> = Enumeration<'a, Queue>;
-struct Stack(Vec<VertexId>);
+pub type BreadthFirst<'a> = Enumeration<'a, Queue>;
+pub struct Stack(Vec<VertexId>);
 impl Next for Stack {
     fn new() -> Self {
         Self(Vec::new())
@@ -86,7 +90,7 @@ impl Next for Stack {
         self.0.pop()
     }
 }
-type DepthFirst<'a> = Enumeration<'a, Stack>;
+pub type DepthFirst<'a> = Enumeration<'a, Stack>;
 
 #[cfg(test)]
 mod tests {
