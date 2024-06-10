@@ -6,6 +6,7 @@ use super::{buffer, tree::TreeEnumeration};
 pub struct GraphEnumeration<'a, N> {
     graph: &'a Graph,
     enumeration: TreeEnumeration<'a, N>,
+    // TODO maybe get rid of Box dyn
     vertices: Box<dyn Iterator<Item = VertexId>>,
     explored: HashSet<VertexId>,
 }
@@ -13,7 +14,7 @@ impl<'a, N> GraphEnumeration<'a, N>
 where
     N: buffer::Buffer,
 {
-    fn on(graph: &'a Graph) -> Self {
+    pub fn on(graph: &'a Graph) -> Self {
         let mut vertices = graph.vertices();
         match vertices.next() {
             None => Self {
@@ -81,6 +82,12 @@ mod tests {
                 .collect::<Vec<VertexId>>(),
             vec![]
         );
+        assert_eq!(
+            GraphDepthFirst::on(&graph)
+                .into_iter()
+                .collect::<Vec<VertexId>>(),
+            vec![]
+        );
     }
 
     #[test]
@@ -88,6 +95,12 @@ mod tests {
         let graph = Graph::from(1, vec![]).unwrap();
         assert_eq!(
             GraphBreadthFirst::on(&graph)
+                .into_iter()
+                .collect::<Vec<VertexId>>(),
+            vec![VertexId(0)]
+        );
+        assert_eq!(
+            GraphDepthFirst::on(&graph)
                 .into_iter()
                 .collect::<Vec<VertexId>>(),
             vec![VertexId(0)]
@@ -103,6 +116,12 @@ mod tests {
                 .collect::<Vec<VertexId>>(),
             vec![VertexId(0), VertexId(1)]
         );
+        assert_eq!(
+            GraphDepthFirst::on(&graph)
+                .into_iter()
+                .collect::<Vec<VertexId>>(),
+            vec![VertexId(0), VertexId(1)]
+        );
     }
 
     #[test]
@@ -114,10 +133,16 @@ mod tests {
                 .collect::<Vec<VertexId>>(),
             vec![VertexId(0), VertexId(1), VertexId(2), VertexId(3)]
         );
+        assert_eq!(
+            GraphDepthFirst::on(&graph)
+                .into_iter()
+                .collect::<Vec<VertexId>>(),
+            vec![VertexId(0), VertexId(1), VertexId(2), VertexId(3)]
+        );
     }
 
     #[test]
-    fn iterates_over_each_component_breadth_first() {
+    fn breadth_first_iterates_over_each_component_breadth_first() {
         let graph = Graph::from(5, vec![(0, 1), (0, 2), (3, 4)]).unwrap();
         assert_eq!(
             GraphBreadthFirst::on(&graph)
@@ -134,10 +159,36 @@ mod tests {
     }
 
     #[test]
+    fn depth_first_iterates_over_each_component_depth_first() {
+        let graph = Graph::from(8, vec![(0, 1), (0, 2), (1, 3), (4, 5), (4, 6), (5, 7)]).unwrap();
+        assert_eq!(
+            GraphDepthFirst::on(&graph)
+                .into_iter()
+                .collect::<Vec<VertexId>>(),
+            vec![
+                VertexId(0),
+                VertexId(2),
+                VertexId(1),
+                VertexId(3),
+                VertexId(4),
+                VertexId(6),
+                VertexId(5),
+                VertexId(7),
+            ]
+        );
+    }
+
+    #[test]
     fn iterates_over_each_component_in_edge_direction_first() {
         let graph = Graph::from(3, vec![(0, 1), (2, 0)]).unwrap();
         assert_eq!(
             GraphBreadthFirst::on(&graph)
+                .into_iter()
+                .collect::<Vec<VertexId>>(),
+            vec![VertexId(0), VertexId(1), VertexId(2),]
+        );
+        assert_eq!(
+            GraphDepthFirst::on(&graph)
                 .into_iter()
                 .collect::<Vec<VertexId>>(),
             vec![VertexId(0), VertexId(1), VertexId(2),]
@@ -149,6 +200,12 @@ mod tests {
         let graph = Graph::from(2, vec![(0, 1), (1, 0)]).unwrap();
         assert_eq!(
             GraphBreadthFirst::on(&graph)
+                .into_iter()
+                .collect::<Vec<VertexId>>(),
+            vec![VertexId(0), VertexId(1),]
+        );
+        assert_eq!(
+            GraphDepthFirst::on(&graph)
                 .into_iter()
                 .collect::<Vec<VertexId>>(),
             vec![VertexId(0), VertexId(1),]
