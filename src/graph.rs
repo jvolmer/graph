@@ -6,7 +6,7 @@ struct Edge(VertexId, VertexId);
 
 #[derive(Debug, PartialEq)]
 pub struct Graph {
-    vertex_count: usize,
+    vertices: Vec<VertexId>,
     edges: Vec<Edge>,
     out_index: Vec<Vec<VertexId>>,
 }
@@ -27,7 +27,7 @@ impl Graph {
             .collect::<Result<Vec<Edge>, String>>();
         edges.and_then(|edges| {
             Ok(Self {
-                vertex_count,
+                vertices: (0..vertex_count).map(|i| VertexId(i)).collect(),
                 edges,
                 out_index,
             })
@@ -39,12 +39,11 @@ impl Graph {
     }
 
     pub fn contains(&self, vertex: &VertexId) -> bool {
-        self.vertex_count > vertex.0
+        self.vertices.len() > vertex.0
     }
 
-    // TODO should return &VertexId
-    pub fn vertices(&self) -> impl Iterator<Item = VertexId> {
-        (0..self.vertex_count).map(|v| VertexId(v))
+    pub fn vertices(&self) -> impl Iterator<Item = &VertexId> {
+        self.vertices.iter()
     }
 }
 
@@ -57,7 +56,14 @@ mod tests {
         assert_eq!(
             Graph::from(6, vec![(0, 1), (4, 5), (1, 1)]).unwrap(),
             Graph {
-                vertex_count: 6,
+                vertices: vec![
+                    VertexId(0),
+                    VertexId(1),
+                    VertexId(2),
+                    VertexId(3),
+                    VertexId(4),
+                    VertexId(5)
+                ],
                 edges: vec![
                     Edge(VertexId(0), VertexId(1)),
                     Edge(VertexId(4), VertexId(5)),

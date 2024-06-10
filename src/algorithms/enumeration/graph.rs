@@ -7,32 +7,32 @@ pub struct GraphEnumeration<'a, N> {
     graph: &'a Graph,
     enumeration: TreeEnumeration<'a, N>,
     // TODO maybe get rid of Box dyn
-    vertices: Box<dyn Iterator<Item = VertexId>>,
-    explored: HashSet<VertexId>,
+    vertices: Box<dyn Iterator<Item = &'a VertexId> + 'a>,
+    explored: HashSet<&'a VertexId>,
 }
 impl<'a, N> GraphEnumeration<'a, N>
 where
-    N: buffer::Buffer,
+    N: buffer::Buffer<'a>,
 {
     pub fn on(graph: &'a Graph) -> Self {
         let mut vertices = graph.vertices();
         match vertices.next() {
             None => Self {
                 graph,
-                enumeration: TreeEnumeration::on(graph, VertexId(0)),
+                enumeration: TreeEnumeration::on(graph, &VertexId(0)),
                 vertices: Box::new(vertices),
                 explored: HashSet::new(),
             },
             Some(v) => Self {
                 graph,
-                enumeration: TreeEnumeration::on(graph, v),
+                enumeration: TreeEnumeration::on(graph, &v),
                 vertices: Box::new(vertices),
                 explored: HashSet::new(),
             },
         }
     }
 
-    fn start_new_tree(&mut self, vertex: VertexId) {
+    fn start_new_tree(&mut self, vertex: &'a VertexId) {
         let old_enumeration = mem::replace(
             &mut self.enumeration,
             TreeEnumeration::on(self.graph, vertex),
@@ -43,9 +43,9 @@ where
 
 impl<'a, N> Iterator for GraphEnumeration<'a, N>
 where
-    N: buffer::Buffer,
+    N: buffer::Buffer<'a>,
 {
-    type Item = VertexId;
+    type Item = &'a VertexId;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.enumeration.next() {
@@ -58,7 +58,7 @@ where
             }
             None => match self.vertices.next() {
                 Some(v) => {
-                    self.start_new_tree(v);
+                    self.start_new_tree(&v);
                     self.next()
                 }
                 None => None,
@@ -66,8 +66,8 @@ where
         }
     }
 }
-pub type GraphBreadthFirst<'a> = GraphEnumeration<'a, buffer::Queue>;
-pub type GraphDepthFirst<'a> = GraphEnumeration<'a, buffer::Stack>;
+pub type GraphBreadthFirst<'a> = GraphEnumeration<'a, buffer::Queue<'a>>;
+pub type GraphDepthFirst<'a> = GraphEnumeration<'a, buffer::Stack<'a>>;
 
 #[cfg(test)]
 mod tests {
@@ -79,14 +79,14 @@ mod tests {
         assert_eq!(
             GraphBreadthFirst::on(&graph)
                 .into_iter()
-                .collect::<Vec<VertexId>>(),
-            vec![]
+                .collect::<Vec<&VertexId>>(),
+            Vec::<&VertexId>::new()
         );
         assert_eq!(
             GraphDepthFirst::on(&graph)
                 .into_iter()
-                .collect::<Vec<VertexId>>(),
-            vec![]
+                .collect::<Vec<&VertexId>>(),
+            Vec::<&VertexId>::new()
         );
     }
 
@@ -96,14 +96,14 @@ mod tests {
         assert_eq!(
             GraphBreadthFirst::on(&graph)
                 .into_iter()
-                .collect::<Vec<VertexId>>(),
-            vec![VertexId(0)]
+                .collect::<Vec<&VertexId>>(),
+            vec![&VertexId(0)]
         );
         assert_eq!(
             GraphDepthFirst::on(&graph)
                 .into_iter()
-                .collect::<Vec<VertexId>>(),
-            vec![VertexId(0)]
+                .collect::<Vec<&VertexId>>(),
+            vec![&VertexId(0)]
         );
     }
 
@@ -113,14 +113,14 @@ mod tests {
         assert_eq!(
             GraphBreadthFirst::on(&graph)
                 .into_iter()
-                .collect::<Vec<VertexId>>(),
-            vec![VertexId(0), VertexId(1)]
+                .collect::<Vec<&VertexId>>(),
+            vec![&VertexId(0), &VertexId(1)]
         );
         assert_eq!(
             GraphDepthFirst::on(&graph)
                 .into_iter()
-                .collect::<Vec<VertexId>>(),
-            vec![VertexId(0), VertexId(1)]
+                .collect::<Vec<&VertexId>>(),
+            vec![&VertexId(0), &VertexId(1)]
         );
     }
 
@@ -130,14 +130,14 @@ mod tests {
         assert_eq!(
             GraphBreadthFirst::on(&graph)
                 .into_iter()
-                .collect::<Vec<VertexId>>(),
-            vec![VertexId(0), VertexId(1), VertexId(2), VertexId(3)]
+                .collect::<Vec<&VertexId>>(),
+            vec![&VertexId(0), &VertexId(1), &VertexId(2), &VertexId(3)]
         );
         assert_eq!(
             GraphDepthFirst::on(&graph)
                 .into_iter()
-                .collect::<Vec<VertexId>>(),
-            vec![VertexId(0), VertexId(1), VertexId(2), VertexId(3)]
+                .collect::<Vec<&VertexId>>(),
+            vec![&VertexId(0), &VertexId(1), &VertexId(2), &VertexId(3)]
         );
     }
 
@@ -147,13 +147,13 @@ mod tests {
         assert_eq!(
             GraphBreadthFirst::on(&graph)
                 .into_iter()
-                .collect::<Vec<VertexId>>(),
+                .collect::<Vec<&VertexId>>(),
             vec![
-                VertexId(0),
-                VertexId(1),
-                VertexId(2),
-                VertexId(3),
-                VertexId(4)
+                &VertexId(0),
+                &VertexId(1),
+                &VertexId(2),
+                &VertexId(3),
+                &VertexId(4)
             ]
         );
     }
@@ -164,16 +164,16 @@ mod tests {
         assert_eq!(
             GraphDepthFirst::on(&graph)
                 .into_iter()
-                .collect::<Vec<VertexId>>(),
+                .collect::<Vec<&VertexId>>(),
             vec![
-                VertexId(0),
-                VertexId(2),
-                VertexId(1),
-                VertexId(3),
-                VertexId(4),
-                VertexId(6),
-                VertexId(5),
-                VertexId(7),
+                &VertexId(0),
+                &VertexId(2),
+                &VertexId(1),
+                &VertexId(3),
+                &VertexId(4),
+                &VertexId(6),
+                &VertexId(5),
+                &VertexId(7),
             ]
         );
     }
@@ -184,14 +184,14 @@ mod tests {
         assert_eq!(
             GraphBreadthFirst::on(&graph)
                 .into_iter()
-                .collect::<Vec<VertexId>>(),
-            vec![VertexId(0), VertexId(1), VertexId(2),]
+                .collect::<Vec<&VertexId>>(),
+            vec![&VertexId(0), &VertexId(1), &VertexId(2),]
         );
         assert_eq!(
             GraphDepthFirst::on(&graph)
                 .into_iter()
-                .collect::<Vec<VertexId>>(),
-            vec![VertexId(0), VertexId(1), VertexId(2),]
+                .collect::<Vec<&VertexId>>(),
+            vec![&VertexId(0), &VertexId(1), &VertexId(2),]
         );
     }
 
@@ -201,14 +201,14 @@ mod tests {
         assert_eq!(
             GraphBreadthFirst::on(&graph)
                 .into_iter()
-                .collect::<Vec<VertexId>>(),
-            vec![VertexId(0), VertexId(1),]
+                .collect::<Vec<&VertexId>>(),
+            vec![&VertexId(0), &VertexId(1),]
         );
         assert_eq!(
             GraphDepthFirst::on(&graph)
                 .into_iter()
-                .collect::<Vec<VertexId>>(),
-            vec![VertexId(0), VertexId(1),]
+                .collect::<Vec<&VertexId>>(),
+            vec![&VertexId(0), &VertexId(1),]
         );
     }
 }
