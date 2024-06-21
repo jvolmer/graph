@@ -4,13 +4,15 @@ use crate::graph::{Graph, VertexId};
 
 struct Vertex<'a> {
     vertex: &'a VertexId,
-    neighbour: Box<dyn Iterator<Item = &'a VertexId> + 'a>,
+    neighbours: Box<dyn Iterator<Item = &'a VertexId> + 'a>,
+    current_neighbour: Option<&'a VertexId>,
 }
 impl<'a> Vertex<'a> {
     fn from(vertex: &'a VertexId, graph: &'a Graph) -> Self {
         Self {
             vertex,
-            neighbour: Box::new(graph.out_neighbors(vertex)),
+            neighbours: Box::new(graph.out_neighbors(vertex)),
+            current_neighbour: None,
         }
     }
 }
@@ -50,15 +52,24 @@ impl<'a> Iterator for DepthFirstWithFunctions<'a> {
             Some(ref mut vertex) => {
                 if !self.explored.contains(vertex.vertex) {
                     self.explored.insert(vertex.vertex);
+                    println!("Start vertex {:?}", vertex.vertex);
                     return Some(vertex.vertex);
                 }
-                match vertex.neighbour.next() {
+                match vertex.current_neighbour {
+                    Some(neighbour) => {
+                        println!("Finish edge {:?} -> {:?}", vertex.vertex, neighbour);
+                    }
+                    None => (),
+                }
+                vertex.current_neighbour = vertex.neighbours.next();
+                match vertex.current_neighbour {
                     Some(neighbour) => {
                         if !self.explored.contains(&neighbour) {
                             self.stack.push(Vertex::from(neighbour, self.graph));
                         }
                     }
                     None => {
+                        println!("Finish vertex {:?}", vertex.vertex);
                         self.stack.pop();
                     }
                 }
