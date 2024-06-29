@@ -45,7 +45,7 @@ where
             }
             self.explored.insert(next);
             self.graph
-                .out_neighbors(&next)
+                .out_neighbors_ref(&next)
                 .for_each(|v| self.next.push(v));
             Some(next)
         } else {

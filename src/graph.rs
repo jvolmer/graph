@@ -34,8 +34,19 @@ impl Graph {
         })
     }
 
-    pub fn out_neighbors<'a>(&'a self, vertex: &'a VertexId) -> impl Iterator<Item = &'a VertexId> {
+    pub fn out_neighbors_ref<'a>(
+        &'a self,
+        vertex: &'a VertexId,
+    ) -> impl Iterator<Item = &'a VertexId> {
         self.out_index.get(vertex.0).unwrap().iter()
+    }
+
+    pub fn out_neighbors<'a>(&'a self, vertex: VertexId) -> impl Iterator<Item = VertexId> + 'a {
+        self.out_index
+            .get(vertex.0)
+            .unwrap()
+            .iter()
+            .map(|v| v.clone())
     }
 
     pub fn contains(&self, vertex: &VertexId) -> bool {
@@ -91,7 +102,7 @@ mod tests {
         let graph = Graph::from(5, vec![(0, 0), (0, 1), (0, 1), (0, 2), (1, 4)]).unwrap();
         assert_eq!(
             graph
-                .out_neighbors(&VertexId(0))
+                .out_neighbors_ref(&VertexId(0))
                 .collect::<Vec<&VertexId>>(),
             vec![&VertexId(0), &VertexId(1), &VertexId(1), &VertexId(2)]
         );
