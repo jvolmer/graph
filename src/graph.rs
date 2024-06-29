@@ -1,8 +1,8 @@
 #[derive(Debug, PartialEq, Clone, Eq, Hash)]
 pub struct VertexId(pub usize);
 
-#[derive(Debug, PartialEq)]
-struct Edge(VertexId, VertexId);
+#[derive(Debug, PartialEq, Clone)]
+pub struct Edge(pub VertexId, pub VertexId);
 
 #[derive(Debug, PartialEq)]
 pub struct Graph {
