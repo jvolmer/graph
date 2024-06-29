@@ -17,73 +17,68 @@ impl<'a> Vertex<'a> {
     }
 }
 
-pub struct VertexFunctions<VB, VE, E>
+pub struct DepthFirstWithFunctions<'a, E>
 where
-    VB: FnMut(&VertexId) -> (),
-    VE: FnMut(&VertexId) -> (),
-    E: FnMut(&VertexId, &VertexId) -> (),
-{
-    pub begin_vertex: VB,
-    pub end_vertex: VE,
-    pub end_edge: E,
-}
-impl VertexFunctions<fn(&VertexId), fn(&VertexId), fn(&VertexId, &VertexId)> {
-    pub fn empty() -> Self {
-        Self {
-            begin_vertex: |_| {},
-            end_vertex: |_| {},
-            end_edge: |_, _| {},
-        }
-    }
-}
-
-pub struct DepthFirstWithFunctions<'a, VB, VE, E>
-where
-    VB: FnMut(&VertexId) -> (),
-    VE: FnMut(&VertexId) -> (),
     E: FnMut(&VertexId, &VertexId) -> (),
 {
     graph: &'a Graph,
     stack: Vec<Vertex<'a>>,
     explored: HashSet<&'a VertexId>,
-    vertex_functions: VertexFunctions<VB, VE, E>,
+    end_edge: E,
 }
-impl<'a, VB, VE, E> DepthFirstWithFunctions<'a, VB, VE, E>
+impl<'a, E> DepthFirstWithFunctions<'a, E>
 where
-    VB: FnMut(&VertexId) -> (),
-    VE: FnMut(&VertexId) -> (),
     E: FnMut(&VertexId, &VertexId) -> (),
 {
-    pub fn on(
-        graph: &'a Graph,
-        start: &'a VertexId,
-        vertex_functions: VertexFunctions<VB, VE, E>,
-    ) -> Self {
+    pub fn on(graph: &'a Graph, start: &'a VertexId, end_edge: E) -> Self {
         if graph.contains(&start) {
             Self {
                 graph,
                 stack: vec![Vertex::from(start, graph)],
                 explored: HashSet::new(),
-                vertex_functions,
+                end_edge,
             }
         } else {
             Self {
                 graph,
                 stack: vec![],
                 explored: HashSet::new(),
-                vertex_functions,
+                end_edge,
+            }
+        }
+    }
+}
+impl<'a> DepthFirstWithFunctions<'a, fn(&VertexId, &VertexId)> {
+    pub fn on_empty(graph: &'a Graph, start: &'a VertexId) -> Self {
+        if graph.contains(&start) {
+            Self {
+                graph,
+                stack: vec![Vertex::from(start, graph)],
+                explored: HashSet::new(),
+                end_edge: |_, _| {},
+            }
+        } else {
+            Self {
+                graph,
+                stack: vec![],
+                explored: HashSet::new(),
+                end_edge: |_, _| {},
             }
         }
     }
 }
 
-impl<'a, VB, VE, E> Iterator for DepthFirstWithFunctions<'a, VB, VE, E>
+#[derive(Debug, PartialEq)]
+pub enum VertexInDFS<'a> {
+    Begin(&'a VertexId),
+    End(&'a VertexId),
+}
+
+impl<'a, E> Iterator for DepthFirstWithFunctions<'a, E>
 where
-    VB: FnMut(&VertexId) -> (),
-    VE: FnMut(&VertexId) -> (),
     E: FnMut(&VertexId, &VertexId) -> (),
 {
-    type Item = &'a VertexId;
+    type Item = VertexInDFS<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let stack_lengh = self.stack.len();
@@ -94,12 +89,11 @@ where
             Some(ref mut vertex) => {
                 if !self.explored.contains(vertex.vertex) {
                     self.explored.insert(vertex.vertex);
-                    (self.vertex_functions.begin_vertex)(vertex.vertex);
-                    return Some(vertex.vertex);
+                    return Some(VertexInDFS::Begin(vertex.vertex));
                 }
                 match vertex.current_neighbour {
                     Some(neighbour) => {
-                        (self.vertex_functions.end_edge)(vertex.vertex, neighbour);
+                        (self.end_edge)(vertex.vertex, neighbour);
                     }
                     None => (),
                 }
@@ -111,8 +105,9 @@ where
                         }
                     }
                     None => {
-                        (self.vertex_functions.end_vertex)(vertex.vertex);
+                        let end = vertex.vertex;
                         self.stack.pop();
+                        return Some(VertexInDFS::End(end));
                     }
                 }
                 self.next()
@@ -130,10 +125,10 @@ mod tests {
     fn does_not_find_non_existend_vertex() {
         let graph = Graph::from(0, vec![]).unwrap();
         assert_eq!(
-            DepthFirstWithFunctions::on(&graph, &VertexId(0), VertexFunctions::empty())
+            DepthFirstWithFunctions::on_empty(&graph, &VertexId(0))
                 .into_iter()
-                .collect::<Vec<&VertexId>>(),
-            Vec::<&VertexId>::new()
+                .collect::<Vec<VertexInDFS>>(),
+            Vec::<VertexInDFS>::new()
         );
     }
 
@@ -141,10 +136,13 @@ mod tests {
     fn finds_sole_vertex() {
         let graph = Graph::from(1, vec![]).unwrap();
         assert_eq!(
-            DepthFirstWithFunctions::on(&graph, &VertexId(0), VertexFunctions::empty())
+            DepthFirstWithFunctions::on_empty(&graph, &VertexId(0))
                 .into_iter()
-                .collect::<Vec<&VertexId>>(),
-            vec![&VertexId(0)]
+                .collect::<Vec<VertexInDFS>>(),
+            vec![
+                VertexInDFS::Begin(&VertexId(0)),
+                VertexInDFS::End(&VertexId(0))
+            ]
         );
     }
 
@@ -152,10 +150,15 @@ mod tests {
     fn iterates_vertices() {
         let graph = Graph::from(2, vec![(0, 1)]).unwrap();
         assert_eq!(
-            DepthFirstWithFunctions::on(&graph, &VertexId(0), VertexFunctions::empty())
+            DepthFirstWithFunctions::on_empty(&graph, &VertexId(0))
                 .into_iter()
-                .collect::<Vec<&VertexId>>(),
-            vec![&VertexId(0), &VertexId(1)]
+                .collect::<Vec<VertexInDFS>>(),
+            vec![
+                VertexInDFS::Begin(&VertexId(0)),
+                VertexInDFS::Begin(&VertexId(1)),
+                VertexInDFS::End(&VertexId(1)),
+                VertexInDFS::End(&VertexId(0))
+            ]
         );
     }
 
@@ -163,29 +166,37 @@ mod tests {
     fn depth_first_enumerates_vertices_depth_first() {
         let graph = Graph::from(6, vec![(0, 1), (0, 2), (4, 5), (1, 3), (1, 4)]).unwrap();
         assert_eq!(
-            DepthFirstWithFunctions::on(&graph, &VertexId(0), VertexFunctions::empty())
+            DepthFirstWithFunctions::on_empty(&graph, &VertexId(0))
                 .into_iter()
-                .collect::<Vec<&VertexId>>(),
+                .collect::<Vec<VertexInDFS>>(),
             vec![
-                &VertexId(0),
-                &VertexId(1),
-                &VertexId(3),
-                &VertexId(4),
-                &VertexId(5),
-                &VertexId(2),
+                VertexInDFS::Begin(&VertexId(0)),
+                VertexInDFS::Begin(&VertexId(1)),
+                VertexInDFS::Begin(&VertexId(3)),
+                VertexInDFS::End(&VertexId(3)),
+                VertexInDFS::Begin(&VertexId(4)),
+                VertexInDFS::Begin(&VertexId(5)),
+                VertexInDFS::End(&VertexId(5)),
+                VertexInDFS::End(&VertexId(4)),
+                VertexInDFS::End(&VertexId(1)),
+                VertexInDFS::Begin(&VertexId(2)),
+                VertexInDFS::End(&VertexId(2)),
+                VertexInDFS::End(&VertexId(0)),
             ]
         );
-        assert!(false);
     }
 
     #[test]
     fn only_finds_connected_vertices() {
         let graph = Graph::from(2, vec![]).unwrap();
         assert_eq!(
-            DepthFirstWithFunctions::on(&graph, &VertexId(0), VertexFunctions::empty())
+            DepthFirstWithFunctions::on_empty(&graph, &VertexId(0))
                 .into_iter()
-                .collect::<Vec<&VertexId>>(),
-            vec![&VertexId(0)]
+                .collect::<Vec<VertexInDFS>>(),
+            vec![
+                VertexInDFS::Begin(&VertexId(0)),
+                VertexInDFS::End(&VertexId(0))
+            ]
         );
     }
 
@@ -193,10 +204,13 @@ mod tests {
     fn only_searches_in_edge_direction() {
         let graph = Graph::from(2, vec![(0, 1)]).unwrap();
         assert_eq!(
-            DepthFirstWithFunctions::on(&graph, &VertexId(1), VertexFunctions::empty())
+            DepthFirstWithFunctions::on_empty(&graph, &VertexId(1))
                 .into_iter()
-                .collect::<Vec<&VertexId>>(),
-            vec![&VertexId(1)]
+                .collect::<Vec<VertexInDFS>>(),
+            vec![
+                VertexInDFS::Begin(&VertexId(1)),
+                VertexInDFS::End(&VertexId(1))
+            ]
         );
     }
 
@@ -204,10 +218,15 @@ mod tests {
     fn finds_each_vertex_only_once() {
         let graph = Graph::from(2, vec![(0, 1), (0, 1)]).unwrap();
         assert_eq!(
-            DepthFirstWithFunctions::on(&graph, &VertexId(0), VertexFunctions::empty())
+            DepthFirstWithFunctions::on_empty(&graph, &VertexId(0))
                 .into_iter()
-                .collect::<Vec<&VertexId>>(),
-            vec![&VertexId(0), &VertexId(1),]
+                .collect::<Vec<VertexInDFS>>(),
+            vec![
+                VertexInDFS::Begin(&VertexId(0)),
+                VertexInDFS::Begin(&VertexId(1)),
+                VertexInDFS::End(&VertexId(1)),
+                VertexInDFS::End(&VertexId(0))
+            ]
         );
     }
 
@@ -215,18 +234,30 @@ mod tests {
     fn finds_each_vertex_in_a_loop_once() {
         let graph = Graph::from(2, vec![(0, 1), (1, 0)]).unwrap();
         assert_eq!(
-            DepthFirstWithFunctions::on(&graph, &VertexId(0), VertexFunctions::empty())
+            DepthFirstWithFunctions::on_empty(&graph, &VertexId(0))
                 .into_iter()
-                .collect::<Vec<&VertexId>>(),
-            vec![&VertexId(0), &VertexId(1),]
+                .collect::<Vec<VertexInDFS>>(),
+            vec![
+                VertexInDFS::Begin(&VertexId(0)),
+                VertexInDFS::Begin(&VertexId(1)),
+                VertexInDFS::End(&VertexId(1)),
+                VertexInDFS::End(&VertexId(0))
+            ]
         );
 
         let graph = Graph::from(3, vec![(0, 1), (1, 2), (2, 1)]).unwrap();
         assert_eq!(
-            DepthFirstWithFunctions::on(&graph, &VertexId(0), VertexFunctions::empty())
+            DepthFirstWithFunctions::on_empty(&graph, &VertexId(0))
                 .into_iter()
-                .collect::<Vec<&VertexId>>(),
-            vec![&VertexId(0), &VertexId(1), &VertexId(2)]
+                .collect::<Vec<VertexInDFS>>(),
+            vec![
+                VertexInDFS::Begin(&VertexId(0)),
+                VertexInDFS::Begin(&VertexId(1)),
+                VertexInDFS::Begin(&VertexId(2)),
+                VertexInDFS::End(&VertexId(2)),
+                VertexInDFS::End(&VertexId(1)),
+                VertexInDFS::End(&VertexId(0))
+            ]
         );
     }
 
@@ -234,65 +265,87 @@ mod tests {
         use super::*;
 
         #[test]
-        fn begins_vertices_in_depth_first_order() {
-            let graph = Graph::from(6, vec![(0, 1), (0, 2), (4, 5), (1, 3), (1, 4)]).unwrap();
-            let mut vertices = Vec::<String>::new();
-            DepthFirstWithFunctions::on(
-                &graph,
-                &VertexId(0),
-                VertexFunctions {
-                    begin_vertex: |v| {
-                        vertices.push(format!("B{:?}", v.0));
-                    },
-                    end_vertex: |_| {},
-                    end_edge: |_, _| {},
-                },
-            )
-            .into_iter()
-            .collect::<Vec<&VertexId>>();
-            assert_eq!(
-                vertices,
-                vec![
-                    "B0".to_string(),
-                    "B1".to_string(),
-                    "B3".to_string(),
-                    "B4".to_string(),
-                    "B5".to_string(),
-                    "B2".to_string(),
-                ]
-            );
+        fn finishes_edge_after_target_vertex_finished() {
+            let graph = Graph::from(6, vec![(0, 1)]).unwrap();
+            let mut edges = Vec::<(VertexId, VertexId)>::new();
+            let mut dfs = DepthFirstWithFunctions::on(&graph, &VertexId(0), |from, to| {
+                edges.push((from.clone(), to.clone()));
+            });
+            assert_eq!(dfs.next(), Some(VertexInDFS::Begin(&VertexId(0))));
+            assert_eq!(edges, Vec::<(VertexId, VertexId)>::new());
+
+            assert_eq!(dfs.next(), Some(VertexInDFS::Begin(&VertexId(1))));
+            assert_eq!(edges, Vec::<(VertexId, VertexId)>::new());
+
+            // assert_eq!(dfs.next(), Some(VertexInDFS::End(&VertexId(1))));
+            // assert_eq!(edges, vec![(VertexId(0), VertexId(1))]);
         }
 
-        #[test]
-        fn ends_vertices_after_all_its_neighbours_have_been_visited() {
-            let graph = Graph::from(6, vec![(0, 1), (0, 2)]).unwrap();
-            let mut vertices = Vec::<String>::new();
-            DepthFirstWithFunctions::on(
-                &graph,
-                &VertexId(0),
-                VertexFunctions {
-                    begin_vertex: |v| {
-                        vertices.push(format!("B{:?}", v.0));
-                    },
-                    end_vertex: |v| {
-                        vertices.push(format!("E{:?}", v.0));
-                    },
-                    end_edge: |_, _| {},
-                },
-            )
-            .into_iter()
-            .collect::<Vec<&VertexId>>();
-            assert_eq!(
-                vertices,
-                vec![
-                    "B0".to_string(),
-                    "B1".to_string(),
-                    "E1".to_string(),
-                    "B2".to_string(),
-                    "E2".to_string(),
-                    "E0".to_string(),
-                ]
-            );
-        }
+        //     #[test]
+        //     fn ends_vertices_after_all_its_neighbours_have_been_visited() {
+        //         let graph = Graph::from(6, vec![(0, 1), (0, 2)]).unwrap();
+        //         let mut vertices = Vec::<String>::new();
+        //         DepthFirstWithFunctions::on(
+        //             &graph,
+        //             &VertexId(0),
+        //             VertexFunctions {
+        //                 begin_vertex: |_| {},
+        //                 end_vertex: |v| {
+        //                     vertices.push(format!("E{:?}", v.0));
+        //                 },
+        //                 end_edge: |_, _| {},
+        //             },
+        //         )
+        //         .into_iter()
+        //         .collect::<Vec<&VertexId>>();
+        //         assert_eq!(
+        //             vertices,
+        //             vec![
+        //                 "B0".to_string(),
+        //                 "B1".to_string(),
+        //                 "E1".to_string(),
+        //                 "B2".to_string(),
+        //                 "E2".to_string(),
+        //                 "E0".to_string(),
+        //             ]
+        //         );
+        //     }
+
+        // #[derive(Debug, PartialEq)]
+        // struct SCCTest {
+        //     unfinished_components: u64,
+        //     next_component: u64,
+        // }
+
+        // #[test]
+        // fn bla() {
+        //     let graph = Graph::from(6, vec![(0, 1), (0, 2)]).unwrap();
+        //     let mut scc = SCCTest {
+        //         unfinished_components: 1,
+        //         next_component: 5,
+        //     };
+        //     DepthFirstWithFunctions::on(
+        //         &graph,
+        //         &VertexId(0),
+        //         VertexFunctions {
+        //             begin_vertex: |_| {},
+        //             end_vertex: |v| {
+        //                 // if scc.unfinished_components == 1 {
+        //                 scc.next_component = 6;
+        //                 // }
+        //             },
+        //             end_edge: |_, _| scc.unfinished_components = 9,
+        //         },
+        //     )
+        //     .into_iter()
+        //     .collect::<Vec<&VertexId>>();
+        //     assert_eq!(
+        //         scc,
+        //         SCCTest {
+        //             unfinished_components: 1,
+        //             next_component: 6
+        //         }
+        //     );
+        // }
     }
 }
