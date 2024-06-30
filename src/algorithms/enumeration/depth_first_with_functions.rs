@@ -24,7 +24,7 @@ pub struct DepthFirstAdvanced<'a> {
     graph: &'a Graph,
     stack: Vec<Vertex<'a>>,
     explored: HashSet<VertexId>,
-    output_stack: VecDeque<VertexInDFS>,
+    output_queue: VecDeque<VertexInDFS>,
 }
 impl<'a> DepthFirstAdvanced<'a> {
     pub fn on(graph: &'a Graph, start: VertexId) -> Self {
@@ -33,14 +33,14 @@ impl<'a> DepthFirstAdvanced<'a> {
                 graph,
                 stack: vec![Vertex::from(start, graph)],
                 explored: HashSet::new(),
-                output_stack: VecDeque::new(),
+                output_queue: VecDeque::new(),
             }
         } else {
             Self {
                 graph,
                 stack: vec![],
                 explored: HashSet::new(),
-                output_stack: VecDeque::new(),
+                output_queue: VecDeque::new(),
             }
         }
     }
@@ -58,53 +58,50 @@ impl<'a> Iterator for DepthFirstAdvanced<'a> {
     type Item = VertexInDFS;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if !self.output_stack.is_empty() {
-            return self.output_stack.pop_back();
+        if !self.output_queue.is_empty() {
+            return self.output_queue.pop_back();
         }
-        let stack_lengh = self.stack.len();
-        if stack_lengh == 0 {
-            return None;
-        }
-        if let Some(ref mut vertex) = self.stack.get_mut(stack_lengh - 1) {
-            // begin vertex
-            if !self.explored.contains(&vertex.vertex) {
-                self.explored.insert(vertex.vertex.clone());
-                self.output_stack
-                    .push_front(VertexInDFS::BeginVertex(vertex.vertex.clone()));
-                // alternatively:
-                // return Some(VertexInDFS::BeginVertex(vertex.vertex.clone()));
-            }
+        match self.stack.pop() {
+            None => None,
+            Some(mut vertex) => {
+                // begin vertex
+                if !self.explored.contains(&vertex.vertex) {
+                    self.explored.insert(vertex.vertex.clone());
+                    self.output_queue
+                        .push_front(VertexInDFS::BeginVertex(vertex.vertex.clone()));
+                }
 
-            // end previous_edge
-            if let Some(old_neighbour) = vertex.current_neighbour.clone() {
-                self.output_stack.push_front(VertexInDFS::EndEdge(Edge(
-                    vertex.vertex.clone(),
-                    old_neighbour,
-                )));
-            }
+                // end previous_edge
+                if let Some(old_neighbour) = vertex.current_neighbour.clone() {
+                    self.output_queue.push_front(VertexInDFS::EndEdge(Edge(
+                        vertex.vertex.clone(),
+                        old_neighbour,
+                    )));
+                }
 
-            // next edge for current vertex
-            vertex.current_neighbour = vertex.neighbours.next();
-            match vertex.current_neighbour.clone() {
-                Some(new_neighbour) => {
-                    // begin edge
-                    let from = vertex.vertex.clone();
-                    if !self.explored.contains(&new_neighbour) {
-                        self.stack
-                            .push(Vertex::from(new_neighbour.clone(), self.graph));
+                // next edge for current vertex
+                vertex.current_neighbour = vertex.neighbours.next();
+                match vertex.current_neighbour.clone() {
+                    Some(new_neighbour) => {
+                        // begin edge
+                        let from = vertex.vertex.clone();
+                        self.stack.push(vertex);
+                        if !self.explored.contains(&new_neighbour) {
+                            self.stack
+                                .push(Vertex::from(new_neighbour.clone(), self.graph));
+                        }
+                        self.output_queue
+                            .push_front(VertexInDFS::BeginEdge(Edge(from, new_neighbour)));
                     }
-                    self.output_stack
-                        .push_front(VertexInDFS::BeginEdge(Edge(from, new_neighbour)));
+                    None => {
+                        // end vertex
+                        let end = vertex.vertex.clone();
+                        self.output_queue.push_front(VertexInDFS::EndVertex(end));
+                    }
                 }
-                None => {
-                    // end vertex
-                    let end = vertex.vertex.clone();
-                    self.stack.pop();
-                    self.output_stack.push_front(VertexInDFS::EndVertex(end));
-                }
+                self.next()
             }
         }
-        return self.next();
     }
 }
 
@@ -155,6 +152,7 @@ mod tests {
         );
     }
 
+    // TODO
     // #[test]
     // fn depth_first_enumerates_vertices_depth_first() {
     //     let graph = Graph::from(6, vec![(0, 1), (0, 2), (4, 5), (1, 3), (1, 4)]).unwrap();
