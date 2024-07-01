@@ -28,7 +28,7 @@ pub struct DepthFirstAdvanced<'a> {
     graph: &'a Graph,
     stack: Vec<Vertex<'a>>,
     explored: HashSet<VertexId>,
-    output_queue: VecDeque<VertexInDFS>,
+    output_queue: VecDeque<DFSEntry>,
 }
 impl<'a> DepthFirstAdvanced<'a> {
     pub fn on(graph: &'a Graph, start: VertexId) -> Self {
@@ -48,10 +48,44 @@ impl<'a> DepthFirstAdvanced<'a> {
             }
         }
     }
+    fn begin_vertex(&mut self, vertex: VertexId) -> Option<DFSEntry> {
+        match self.explored.contains(&vertex) {
+            true => None,
+            false => {
+                self.explored.insert(vertex.clone());
+                Some(DFSEntry::BeginVertex(vertex))
+            }
+        }
+    }
+    fn end_previous_edge(&self, vertex: &Vertex) -> Option<DFSEntry> {
+        vertex
+            .current_neighbour
+            .clone()
+            .and_then(|neighbour| Some(DFSEntry::EndEdge(Edge(vertex.id.clone(), neighbour))))
+    }
+    fn end_vertex(&self, vertex: &Vertex) -> Option<DFSEntry> {
+        match vertex.current_neighbour {
+            Some(_) => None,
+            None => Some(DFSEntry::EndVertex(vertex.id.clone())),
+        }
+    }
+    // TODO if Vertex<'a> is cloneable: give clone to this function instead of current 2 arguments
+    fn begin_next_edge(
+        &mut self,
+        vertex: VertexId,
+        current_neighbour: Option<VertexId>,
+    ) -> Option<DFSEntry> {
+        current_neighbour.clone().and_then(|neighbour| {
+            if !self.explored.contains(&neighbour) {
+                self.stack.push(Vertex::from(neighbour.clone(), self.graph));
+            }
+            Some(DFSEntry::BeginEdge(Edge(vertex, neighbour)))
+        })
+    }
 }
 
 #[derive(Debug, PartialEq)]
-pub enum VertexInDFS {
+pub enum DFSEntry {
     BeginVertex(VertexId),
     BeginEdge(Edge),
     EndVertex(VertexId),
@@ -59,7 +93,7 @@ pub enum VertexInDFS {
 }
 
 impl<'a> Iterator for DepthFirstAdvanced<'a> {
-    type Item = VertexInDFS;
+    type Item = DFSEntry;
 
     fn next(&mut self) -> Option<Self::Item> {
         if !self.output_queue.is_empty() {
@@ -68,39 +102,23 @@ impl<'a> Iterator for DepthFirstAdvanced<'a> {
         match self.stack.pop() {
             None => None,
             Some(vertex) => {
-                // begin vertex
-                if !self.explored.contains(&vertex.id) {
-                    self.explored.insert(vertex.id.clone());
-                    self.output_queue
-                        .push_front(VertexInDFS::BeginVertex(vertex.id.clone()));
-                }
+                self.begin_vertex(vertex.id.clone())
+                    .and_then(|x| Some(self.output_queue.push_front(x)));
 
-                // end previous_edge
-                if let Some(old_neighbour) = vertex.current_neighbour.clone() {
-                    self.output_queue
-                        .push_front(VertexInDFS::EndEdge(Edge(vertex.id.clone(), old_neighbour)));
-                }
+                self.end_previous_edge(&vertex)
+                    .and_then(|x| Some(self.output_queue.push_front(x)));
 
-                // next edge for current vertex
                 let updated_vertex = vertex.next_neighbour();
-                match updated_vertex.current_neighbour.clone() {
-                    Some(new_neighbour) => {
-                        // begin edge
-                        let from = updated_vertex.id.clone();
-                        self.stack.push(updated_vertex);
-                        if !self.explored.contains(&new_neighbour) {
-                            self.stack
-                                .push(Vertex::from(new_neighbour.clone(), self.graph));
-                        }
-                        self.output_queue
-                            .push_front(VertexInDFS::BeginEdge(Edge(from, new_neighbour)));
-                    }
-                    None => {
-                        // end vertex
-                        self.output_queue
-                            .push_front(VertexInDFS::EndVertex(updated_vertex.id));
-                    }
-                }
+                let updated_vertex_id = updated_vertex.id.clone();
+                let updated_current_neighbour = updated_vertex.current_neighbour.clone();
+
+                self.end_vertex(&updated_vertex)
+                    .and_then(|x| Some(self.output_queue.push_front(x)))
+                    .or_else(|| Some(self.stack.push(updated_vertex)));
+
+                self.begin_next_edge(updated_vertex_id, updated_current_neighbour)
+                    .and_then(|x| Some(self.output_queue.push_front(x)));
+
                 self.next()
             }
         }
@@ -117,8 +135,8 @@ mod tests {
         assert_eq!(
             DepthFirstAdvanced::on(&graph, VertexId(0))
                 .into_iter()
-                .collect::<Vec<VertexInDFS>>(),
-            Vec::<VertexInDFS>::new()
+                .collect::<Vec<DFSEntry>>(),
+            Vec::<DFSEntry>::new()
         );
     }
 
@@ -128,10 +146,10 @@ mod tests {
         assert_eq!(
             DepthFirstAdvanced::on(&graph, VertexId(0))
                 .into_iter()
-                .collect::<Vec<VertexInDFS>>(),
+                .collect::<Vec<DFSEntry>>(),
             vec![
-                VertexInDFS::BeginVertex(VertexId(0)),
-                VertexInDFS::EndVertex(VertexId(0))
+                DFSEntry::BeginVertex(VertexId(0)),
+                DFSEntry::EndVertex(VertexId(0))
             ]
         );
     }
@@ -142,14 +160,14 @@ mod tests {
         assert_eq!(
             DepthFirstAdvanced::on(&graph, VertexId(0))
                 .into_iter()
-                .collect::<Vec<VertexInDFS>>(),
+                .collect::<Vec<DFSEntry>>(),
             vec![
-                VertexInDFS::BeginVertex(VertexId(0)),
-                VertexInDFS::BeginEdge(Edge(VertexId(0), VertexId(1))),
-                VertexInDFS::BeginVertex(VertexId(1)),
-                VertexInDFS::EndVertex(VertexId(1)),
-                VertexInDFS::EndEdge(Edge(VertexId(0), VertexId(1))),
-                VertexInDFS::EndVertex(VertexId(0))
+                DFSEntry::BeginVertex(VertexId(0)),
+                DFSEntry::BeginEdge(Edge(VertexId(0), VertexId(1))),
+                DFSEntry::BeginVertex(VertexId(1)),
+                DFSEntry::EndVertex(VertexId(1)),
+                DFSEntry::EndEdge(Edge(VertexId(0), VertexId(1))),
+                DFSEntry::EndVertex(VertexId(0))
             ]
         );
     }
@@ -160,30 +178,30 @@ mod tests {
         assert_eq!(
             DepthFirstAdvanced::on(&graph, VertexId(0))
                 .into_iter()
-                .collect::<Vec<VertexInDFS>>(),
+                .collect::<Vec<DFSEntry>>(),
             vec![
-                VertexInDFS::BeginVertex(VertexId(0)),
-                VertexInDFS::BeginEdge(Edge(VertexId(0), VertexId(1))),
-                VertexInDFS::BeginVertex(VertexId(1)),
-                VertexInDFS::BeginEdge(Edge(VertexId(1), VertexId(3))),
-                VertexInDFS::BeginVertex(VertexId(3)),
-                VertexInDFS::EndVertex(VertexId(3)),
-                VertexInDFS::EndEdge(Edge(VertexId(1), VertexId(3))),
-                VertexInDFS::BeginEdge(Edge(VertexId(1), VertexId(4))),
-                VertexInDFS::BeginVertex(VertexId(4)),
-                VertexInDFS::BeginEdge(Edge(VertexId(4), VertexId(5))),
-                VertexInDFS::BeginVertex(VertexId(5)),
-                VertexInDFS::EndVertex(VertexId(5)),
-                VertexInDFS::EndEdge(Edge(VertexId(4), VertexId(5))),
-                VertexInDFS::EndVertex(VertexId(4)),
-                VertexInDFS::EndEdge(Edge(VertexId(1), VertexId(4))),
-                VertexInDFS::EndVertex(VertexId(1)),
-                VertexInDFS::EndEdge(Edge(VertexId(0), VertexId(1))),
-                VertexInDFS::BeginEdge(Edge(VertexId(0), VertexId(2))),
-                VertexInDFS::BeginVertex(VertexId(2)),
-                VertexInDFS::EndVertex(VertexId(2)),
-                VertexInDFS::EndEdge(Edge(VertexId(0), VertexId(2))),
-                VertexInDFS::EndVertex(VertexId(0))
+                DFSEntry::BeginVertex(VertexId(0)),
+                DFSEntry::BeginEdge(Edge(VertexId(0), VertexId(1))),
+                DFSEntry::BeginVertex(VertexId(1)),
+                DFSEntry::BeginEdge(Edge(VertexId(1), VertexId(3))),
+                DFSEntry::BeginVertex(VertexId(3)),
+                DFSEntry::EndVertex(VertexId(3)),
+                DFSEntry::EndEdge(Edge(VertexId(1), VertexId(3))),
+                DFSEntry::BeginEdge(Edge(VertexId(1), VertexId(4))),
+                DFSEntry::BeginVertex(VertexId(4)),
+                DFSEntry::BeginEdge(Edge(VertexId(4), VertexId(5))),
+                DFSEntry::BeginVertex(VertexId(5)),
+                DFSEntry::EndVertex(VertexId(5)),
+                DFSEntry::EndEdge(Edge(VertexId(4), VertexId(5))),
+                DFSEntry::EndVertex(VertexId(4)),
+                DFSEntry::EndEdge(Edge(VertexId(1), VertexId(4))),
+                DFSEntry::EndVertex(VertexId(1)),
+                DFSEntry::EndEdge(Edge(VertexId(0), VertexId(1))),
+                DFSEntry::BeginEdge(Edge(VertexId(0), VertexId(2))),
+                DFSEntry::BeginVertex(VertexId(2)),
+                DFSEntry::EndVertex(VertexId(2)),
+                DFSEntry::EndEdge(Edge(VertexId(0), VertexId(2))),
+                DFSEntry::EndVertex(VertexId(0))
             ]
         );
     }
@@ -194,10 +212,10 @@ mod tests {
         assert_eq!(
             DepthFirstAdvanced::on(&graph, VertexId(0))
                 .into_iter()
-                .collect::<Vec<VertexInDFS>>(),
+                .collect::<Vec<DFSEntry>>(),
             vec![
-                VertexInDFS::BeginVertex(VertexId(0)),
-                VertexInDFS::EndVertex(VertexId(0))
+                DFSEntry::BeginVertex(VertexId(0)),
+                DFSEntry::EndVertex(VertexId(0))
             ]
         );
     }
@@ -208,10 +226,10 @@ mod tests {
         assert_eq!(
             DepthFirstAdvanced::on(&graph, VertexId(1))
                 .into_iter()
-                .collect::<Vec<VertexInDFS>>(),
+                .collect::<Vec<DFSEntry>>(),
             vec![
-                VertexInDFS::BeginVertex(VertexId(1)),
-                VertexInDFS::EndVertex(VertexId(1))
+                DFSEntry::BeginVertex(VertexId(1)),
+                DFSEntry::EndVertex(VertexId(1))
             ]
         );
     }
@@ -222,16 +240,16 @@ mod tests {
         assert_eq!(
             DepthFirstAdvanced::on(&graph, VertexId(0))
                 .into_iter()
-                .collect::<Vec<VertexInDFS>>(),
+                .collect::<Vec<DFSEntry>>(),
             vec![
-                VertexInDFS::BeginVertex(VertexId(0)),
-                VertexInDFS::BeginEdge(Edge(VertexId(0), VertexId(1))),
-                VertexInDFS::BeginVertex(VertexId(1)),
-                VertexInDFS::EndVertex(VertexId(1)),
-                VertexInDFS::EndEdge(Edge(VertexId(0), VertexId(1))),
-                VertexInDFS::BeginEdge(Edge(VertexId(0), VertexId(1))),
-                VertexInDFS::EndEdge(Edge(VertexId(0), VertexId(1))),
-                VertexInDFS::EndVertex(VertexId(0))
+                DFSEntry::BeginVertex(VertexId(0)),
+                DFSEntry::BeginEdge(Edge(VertexId(0), VertexId(1))),
+                DFSEntry::BeginVertex(VertexId(1)),
+                DFSEntry::EndVertex(VertexId(1)),
+                DFSEntry::EndEdge(Edge(VertexId(0), VertexId(1))),
+                DFSEntry::BeginEdge(Edge(VertexId(0), VertexId(1))),
+                DFSEntry::EndEdge(Edge(VertexId(0), VertexId(1))),
+                DFSEntry::EndVertex(VertexId(0))
             ]
         );
     }
@@ -242,16 +260,16 @@ mod tests {
         assert_eq!(
             DepthFirstAdvanced::on(&graph, VertexId(0))
                 .into_iter()
-                .collect::<Vec<VertexInDFS>>(),
+                .collect::<Vec<DFSEntry>>(),
             vec![
-                VertexInDFS::BeginVertex(VertexId(0)),
-                VertexInDFS::BeginEdge(Edge(VertexId(0), VertexId(1))),
-                VertexInDFS::BeginVertex(VertexId(1)),
-                VertexInDFS::BeginEdge(Edge(VertexId(1), VertexId(0))),
-                VertexInDFS::EndEdge(Edge(VertexId(1), VertexId(0))),
-                VertexInDFS::EndVertex(VertexId(1)),
-                VertexInDFS::EndEdge(Edge(VertexId(0), VertexId(1))),
-                VertexInDFS::EndVertex(VertexId(0))
+                DFSEntry::BeginVertex(VertexId(0)),
+                DFSEntry::BeginEdge(Edge(VertexId(0), VertexId(1))),
+                DFSEntry::BeginVertex(VertexId(1)),
+                DFSEntry::BeginEdge(Edge(VertexId(1), VertexId(0))),
+                DFSEntry::EndEdge(Edge(VertexId(1), VertexId(0))),
+                DFSEntry::EndVertex(VertexId(1)),
+                DFSEntry::EndEdge(Edge(VertexId(0), VertexId(1))),
+                DFSEntry::EndVertex(VertexId(0))
             ]
         );
 
@@ -259,20 +277,20 @@ mod tests {
         assert_eq!(
             DepthFirstAdvanced::on(&graph, VertexId(0))
                 .into_iter()
-                .collect::<Vec<VertexInDFS>>(),
+                .collect::<Vec<DFSEntry>>(),
             vec![
-                VertexInDFS::BeginVertex(VertexId(0)),
-                VertexInDFS::BeginEdge(Edge(VertexId(0), VertexId(1))),
-                VertexInDFS::BeginVertex(VertexId(1)),
-                VertexInDFS::BeginEdge(Edge(VertexId(1), VertexId(2))),
-                VertexInDFS::BeginVertex(VertexId(2)),
-                VertexInDFS::BeginEdge(Edge(VertexId(2), VertexId(1))),
-                VertexInDFS::EndEdge(Edge(VertexId(2), VertexId(1))),
-                VertexInDFS::EndVertex(VertexId(2)),
-                VertexInDFS::EndEdge(Edge(VertexId(1), VertexId(2))),
-                VertexInDFS::EndVertex(VertexId(1)),
-                VertexInDFS::EndEdge(Edge(VertexId(0), VertexId(1))),
-                VertexInDFS::EndVertex(VertexId(0))
+                DFSEntry::BeginVertex(VertexId(0)),
+                DFSEntry::BeginEdge(Edge(VertexId(0), VertexId(1))),
+                DFSEntry::BeginVertex(VertexId(1)),
+                DFSEntry::BeginEdge(Edge(VertexId(1), VertexId(2))),
+                DFSEntry::BeginVertex(VertexId(2)),
+                DFSEntry::BeginEdge(Edge(VertexId(2), VertexId(1))),
+                DFSEntry::EndEdge(Edge(VertexId(2), VertexId(1))),
+                DFSEntry::EndVertex(VertexId(2)),
+                DFSEntry::EndEdge(Edge(VertexId(1), VertexId(2))),
+                DFSEntry::EndVertex(VertexId(1)),
+                DFSEntry::EndEdge(Edge(VertexId(0), VertexId(1))),
+                DFSEntry::EndVertex(VertexId(0))
             ]
         );
     }
