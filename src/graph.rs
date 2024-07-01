@@ -1,4 +1,4 @@
-#[derive(Debug, PartialEq, Clone, Eq, Hash)]
+#[derive(Debug, PartialEq, Clone, Eq, Hash, PartialOrd, Ord)]
 pub struct VertexId(pub usize);
 
 #[derive(Debug, PartialEq, Clone)]
