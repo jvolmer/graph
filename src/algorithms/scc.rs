@@ -5,7 +5,7 @@ use std::{
 
 use crate::graph::{Graph, VertexId};
 
-use super::enumeration::depth_first_with_functions::{DFSEntry, DepthFirstAdvanced};
+use super::enumeration::detailed::tree::{DFSEntry, DepthFirst};
 
 #[derive(Debug, PartialEq)]
 struct VertexComponent(VertexId);
@@ -81,7 +81,7 @@ impl Component {
 
 struct SCC<'a> {
     // make this a dfs that goes over full graph, not only tree
-    dfs: DepthFirstAdvanced<'a>,
+    dfs: DepthFirst<'a>,
     unfinished_components: HashStack,
 }
 
@@ -89,7 +89,7 @@ impl<'a> SCC<'a> {
     // TODO get rid of vertex
     pub fn on(graph: &'a Graph, vertex: VertexId) -> Self {
         Self {
-            dfs: DepthFirstAdvanced::on(&graph, vertex),
+            dfs: DepthFirst::on(&graph, vertex),
             unfinished_components: HashStack::new(),
         }
     }

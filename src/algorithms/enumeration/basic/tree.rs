@@ -3,12 +3,12 @@ use std::collections::HashSet;
 use super::buffer;
 use crate::graph::{Graph, VertexId};
 
-pub struct TreeEnumeration<'a, E> {
+pub struct Enumeration<'a, E> {
     graph: &'a Graph,
     next: E,
     explored: HashSet<&'a VertexId>,
 }
-impl<'a, E> TreeEnumeration<'a, E>
+impl<'a, E> Enumeration<'a, E>
 where
     E: buffer::Buffer<'a>,
 {
@@ -32,7 +32,7 @@ where
     }
 }
 
-impl<'a, E> Iterator for TreeEnumeration<'a, E>
+impl<'a, E> Iterator for Enumeration<'a, E>
 where
     E: buffer::Buffer<'a>,
 {
@@ -54,8 +54,8 @@ where
     }
 }
 
-pub type BreadthFirst<'a> = TreeEnumeration<'a, buffer::Queue<'a>>;
-pub type DepthFirst<'a> = TreeEnumeration<'a, buffer::Stack<'a>>;
+pub type BreadthFirst<'a> = Enumeration<'a, buffer::Queue<'a>>;
+pub type DepthFirst<'a> = Enumeration<'a, buffer::Stack<'a>>;
 
 #[cfg(test)]
 mod tests {
