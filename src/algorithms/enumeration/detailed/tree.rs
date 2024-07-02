@@ -1,4 +1,7 @@
-use std::collections::{HashSet, VecDeque};
+use std::{
+    collections::{HashSet, VecDeque},
+    fmt,
+};
 
 use crate::graph::{Edge, Graph, VertexId};
 
@@ -6,6 +9,7 @@ struct Vertex<'a> {
     id: VertexId,
     current_neighbour: Option<VertexId>,
     neighbours: Box<dyn Iterator<Item = VertexId> + 'a>,
+    dropped: bool,
 }
 impl<'a> Vertex<'a> {
     fn from(vertex: VertexId, graph: &'a Graph) -> Self {
@@ -13,14 +17,29 @@ impl<'a> Vertex<'a> {
             id: vertex.clone(),
             current_neighbour: None,
             neighbours: Box::new(graph.out_neighbors(vertex)),
+            dropped: false,
         }
     }
     fn next_neighbour(mut self) -> Self {
         Self {
-            id: self.id,
             current_neighbour: self.neighbours.next(),
-            neighbours: self.neighbours,
+            ..self
         }
+    }
+    fn drop(self) -> Self {
+        Self {
+            dropped: true,
+            ..self
+        }
+    }
+}
+impl<'a> fmt::Debug for Vertex<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Vertex")
+            .field("id", &self.id)
+            .field("current_neighbour", &self.current_neighbour)
+            .field("dropped", &self.dropped)
+            .finish()
     }
 }
 
@@ -56,6 +75,15 @@ impl<'a> DepthFirst<'a> {
             }
         }
     }
+    pub fn explored(self) -> HashSet<VertexId> {
+        self.explored
+    }
+    pub fn drop_current_vertex(&mut self) {
+        if let Some(v) = self.stack.pop() {
+            self.stack.push(v.drop());
+        }
+    }
+
     fn begin_vertex(&mut self, vertex: VertexId) -> Option<DFSEntry> {
         match self.explored.contains(&vertex) {
             true => None,
@@ -72,10 +100,13 @@ impl<'a> DepthFirst<'a> {
             .and_then(|neighbour| Some(DFSEntry::EndEdge(Edge(vertex.id.clone(), neighbour))))
     }
     fn end_vertex(&self, vertex: &Vertex) -> Option<DFSEntry> {
-        match vertex.current_neighbour {
-            Some(_) => None,
-            None => Some(DFSEntry::EndVertex(vertex.id.clone())),
+        if let None = vertex.current_neighbour {
+            if !vertex.dropped {
+                let id = vertex.id.clone();
+                return Some(DFSEntry::EndVertex(id));
+            }
         }
+        None
     }
     // TODO if Vertex<'a> is cloneable: give clone to this function instead of current 2 arguments
     fn begin_next_edge(
@@ -92,7 +123,7 @@ impl<'a> DepthFirst<'a> {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum DFSEntry {
     BeginVertex(VertexId),
     BeginEdge(Edge),
@@ -110,8 +141,12 @@ impl<'a> Iterator for DepthFirst<'a> {
         match self.stack.pop() {
             None => None,
             Some(vertex) => {
-                self.begin_vertex(vertex.id.clone())
-                    .and_then(|x| Some(self.output_queue.push_front(x)));
+                if let Some(entry) = self.begin_vertex(vertex.id.clone()) {
+                    self.stack.push(vertex);
+                    // directly return here to make sure that the returned started vertex
+                    // can be dropped by calling drop_current_vertex afterwards
+                    return Some(entry);
+                }
 
                 self.end_previous_edge(&vertex)
                     .and_then(|x| Some(self.output_queue.push_front(x)));
@@ -119,13 +154,21 @@ impl<'a> Iterator for DepthFirst<'a> {
                 let updated_vertex = vertex.next_neighbour();
                 let updated_vertex_id = updated_vertex.id.clone();
                 let updated_current_neighbour = updated_vertex.current_neighbour.clone();
+                let updated_dropped = updated_vertex.dropped;
 
                 self.end_vertex(&updated_vertex)
                     .and_then(|x| Some(self.output_queue.push_front(x)))
-                    .or_else(|| Some(self.stack.push(updated_vertex)));
+                    .or_else(|| {
+                        if !updated_vertex.dropped {
+                            self.stack.push(updated_vertex);
+                        }
+                        None
+                    });
 
-                self.begin_next_edge(updated_vertex_id, updated_current_neighbour)
-                    .and_then(|x| Some(self.output_queue.push_front(x)));
+                if !updated_dropped {
+                    self.begin_next_edge(updated_vertex_id, updated_current_neighbour)
+                        .and_then(|x| Some(self.output_queue.push_front(x)));
+                }
 
                 self.next()
             }
