@@ -174,12 +174,6 @@ mod tests {
     #[test]
     fn iterates_over_each_component_in_edge_direction_first() {
         let graph = Graph::from(3, vec![(0, 1), (2, 0)]).unwrap();
-        println!(
-            "{:#?}",
-            DepthFirst::on(&graph)
-                .into_iter()
-                .collect::<Vec<DFSEntry>>()
-        );
         assert_eq!(
             DepthFirst::on(&graph)
                 .into_iter()

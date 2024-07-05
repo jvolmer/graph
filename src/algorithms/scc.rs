@@ -5,55 +5,67 @@ use std::{
 
 use crate::graph::{Graph, VertexId};
 
-use super::enumeration::detailed::tree::{DFSEntry, DepthFirst};
+use super::enumeration::detailed::{graph::DepthFirst, tree::DFSEntry};
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
+struct VertexComponent(usize);
 #[derive(Debug, PartialEq)]
-struct VertexComponent(VertexId);
+struct Vertex {
+    index: VertexComponent,
+    low_link: VertexComponent,
+}
+impl Vertex {
+    fn from(index: VertexComponent, component: VertexComponent) -> Self {
+        Self {
+            index,
+            low_link: component,
+        }
+    }
+    fn is_root(&self) -> bool {
+        self.index == self.low_link
+    }
+}
 struct HashStack {
-    hash: HashMap<VertexId, VertexComponent>,
+    hash: HashMap<VertexId, Vertex>,
     stack: Vec<VertexId>,
+    next_component: VertexComponent,
 }
 impl HashStack {
     fn new() -> Self {
         Self {
             hash: HashMap::new(),
             stack: Vec::new(),
+            next_component: VertexComponent(0),
         }
     }
     fn push(&mut self, vertex: VertexId) {
         // TODO make sure that this is not already contained
-        self.hash
-            .insert(vertex.clone(), VertexComponent(vertex.clone()));
-        println!("Inserted {:?}; HashMap: {:?}", vertex, self.hash);
+        self.hash.insert(
+            vertex.clone(),
+            Vertex::from(self.next_component, self.next_component),
+        );
+        self.next_component = VertexComponent(self.next_component.0 + 1);
         self.stack.push(vertex);
     }
-    fn update_with_minimum(&mut self, vertex: VertexId, update: VertexId) {
-        // TODO make sure that vertex is already contained
-        println!("Hash Map {:?}", self.hash);
-        let update = self.hash.get(&update);
-        if let Some(update) = update {
+    fn update_with_minimum(&mut self, vertex_id: VertexId, update_id: VertexId) {
+        if let (Some(vertex), Some(update)) = (self.hash.get(&vertex_id), self.hash.get(&update_id))
+        {
             self.hash.insert(
-                vertex.clone(),
-                // TODO error handling
-                VertexComponent(cmp::min(
-                    self.hash.get(&vertex).unwrap().0.clone(),
-                    update.0.clone(),
-                )),
+                vertex_id,
+                Vertex::from(vertex.index, cmp::min(vertex.low_link, update.low_link)),
             );
         }
     }
-    fn is_root(&self, vertex: &VertexId) -> bool {
+    fn is_root(&self, vertex_id: &VertexId) -> bool {
         // TODO error handling
-        self.hash.get(vertex).unwrap() == &VertexComponent(vertex.clone())
+        self.hash.get(vertex_id).unwrap().is_root()
     }
     fn pop_until(&mut self, vertex: VertexId) -> Component {
-        println!("Pop until {:?}", vertex);
         let mut component = Component::new();
         loop {
             match self.stack.pop() {
                 None => return component, // TODO error?
                 Some(v) => {
-                    println!("Pop {:?}", v);
                     self.hash.remove(&v);
                     component.add(v.clone());
                     if v == vertex {
@@ -87,9 +99,9 @@ struct SCC<'a> {
 
 impl<'a> SCC<'a> {
     // TODO get rid of vertex
-    pub fn on(graph: &'a Graph, vertex: VertexId) -> Self {
+    pub fn on(graph: &'a Graph) -> Self {
         Self {
-            dfs: DepthFirst::on(&graph, vertex),
+            dfs: DepthFirst::on(&graph),
             unfinished_components: HashStack::new(),
         }
     }
@@ -101,21 +113,18 @@ impl<'a> Iterator for SCC<'a> {
         loop {
             match self.dfs.next() {
                 None => return None,
-                Some(next) => {
-                    println!("{:?}", next);
-                    match next {
-                        DFSEntry::BeginVertex(v) => self.unfinished_components.push(v),
-                        DFSEntry::EndEdge(e) => {
-                            self.unfinished_components.update_with_minimum(e.0, e.1);
-                        }
-                        DFSEntry::EndVertex(v) => {
-                            if self.unfinished_components.is_root(&v) {
-                                return Some(self.unfinished_components.pop_until(v));
-                            }
-                        }
-                        _ => (),
+                Some(next) => match next {
+                    DFSEntry::BeginVertex(v) => self.unfinished_components.push(v),
+                    DFSEntry::EndEdge(e) => {
+                        self.unfinished_components.update_with_minimum(e.0, e.1);
                     }
-                }
+                    DFSEntry::EndVertex(v) => {
+                        if self.unfinished_components.is_root(&v) {
+                            return Some(self.unfinished_components.pop_until(v));
+                        }
+                    }
+                    _ => (),
+                },
             }
         }
     }
@@ -129,9 +138,7 @@ mod tests {
     fn empty_graph_has_no_components() {
         let graph = Graph::from(0, vec![]).unwrap();
         assert_eq!(
-            SCC::on(&graph, VertexId(0))
-                .into_iter()
-                .collect::<Vec<Component>>(),
+            SCC::on(&graph).into_iter().collect::<Vec<Component>>(),
             Vec::<Component>::new()
         );
     }
@@ -140,9 +147,7 @@ mod tests {
     fn single_vertex_is_a_strong_component() {
         let graph = Graph::from(1, vec![]).unwrap();
         assert_eq!(
-            SCC::on(&graph, VertexId(0))
-                .into_iter()
-                .collect::<Vec<Component>>(),
+            SCC::on(&graph).into_iter().collect::<Vec<Component>>(),
             vec![Component::from(vec![VertexId(0)])]
         );
     }
@@ -151,9 +156,7 @@ mod tests {
     fn vertices_connected_with_one_edge_are_not_stronly_connected() {
         let graph = Graph::from(2, vec![(0, 1)]).unwrap();
         assert_eq!(
-            SCC::on(&graph, VertexId(0))
-                .into_iter()
-                .collect::<Vec<Component>>(),
+            SCC::on(&graph).into_iter().collect::<Vec<Component>>(),
             vec![
                 Component::from(vec![VertexId(1)]),
                 Component::from(vec![VertexId(0)])
@@ -165,9 +168,7 @@ mod tests {
     fn vertices_connected_in_both_directions_are_stronly_connected() {
         let graph = Graph::from(2, vec![(0, 1), (1, 0)]).unwrap();
         assert_eq!(
-            SCC::on(&graph, VertexId(0))
-                .into_iter()
-                .collect::<Vec<Component>>(),
+            SCC::on(&graph).into_iter().collect::<Vec<Component>>(),
             vec![Component::from(vec![VertexId(1), VertexId(0)]),]
         );
     }
@@ -176,10 +177,30 @@ mod tests {
     fn loop_is_stronly_connected() {
         let graph = Graph::from(3, vec![(0, 1), (1, 2), (2, 0)]).unwrap();
         assert_eq!(
-            SCC::on(&graph, VertexId(0))
-                .into_iter()
-                .collect::<Vec<Component>>(),
+            SCC::on(&graph).into_iter().collect::<Vec<Component>>(),
             vec![Component::from(vec![VertexId(2), VertexId(1), VertexId(0)]),]
+        );
+    }
+
+    #[test]
+    fn finds_component_in_different_ordering() {
+        let graph = Graph::from(3, vec![(2, 1), (1, 2)]).unwrap();
+        assert_eq!(
+            SCC::on(&graph).into_iter().collect::<Vec<Component>>(),
+            vec![
+                Component::from(vec![VertexId(0)]),
+                Component::from(vec![VertexId(2), VertexId(1)]),
+            ]
+        );
+        let graph = Graph::from(6, vec![(4, 2), (2, 0), (1, 3), (5, 2), (0, 4)]).unwrap();
+        assert_eq!(
+            SCC::on(&graph).into_iter().collect::<Vec<Component>>(),
+            vec![
+                Component::from(vec![VertexId(0), VertexId(2), VertexId(4)]),
+                Component::from(vec![VertexId(3)]),
+                Component::from(vec![VertexId(1)]),
+                Component::from(vec![VertexId(5)]),
+            ]
         );
     }
 
@@ -187,9 +208,7 @@ mod tests {
     fn finds_two_stronly_connected_components() {
         let graph = Graph::from(5, vec![(0, 1), (1, 2), (2, 0), (2, 3), (3, 4), (4, 3)]).unwrap();
         assert_eq!(
-            SCC::on(&graph, VertexId(0))
-                .into_iter()
-                .collect::<Vec<Component>>(),
+            SCC::on(&graph).into_iter().collect::<Vec<Component>>(),
             vec![
                 Component::from(vec![VertexId(4), VertexId(3)]),
                 Component::from(vec![VertexId(2), VertexId(1), VertexId(0)]),
@@ -201,9 +220,7 @@ mod tests {
     fn two_nested_loops_belong_to_same_strong_component() {
         let graph = Graph::from(4, vec![(0, 1), (1, 2), (2, 0), (2, 3), (3, 2)]).unwrap();
         assert_eq!(
-            SCC::on(&graph, VertexId(0))
-                .into_iter()
-                .collect::<Vec<Component>>(),
+            SCC::on(&graph).into_iter().collect::<Vec<Component>>(),
             vec![Component::from(vec![
                 VertexId(3),
                 VertexId(2),
@@ -213,53 +230,50 @@ mod tests {
         );
     }
 
-    // TODO uncomment when depth first over unconnected trees works
-    // #[test]
-    // fn works_on_knuth_example() {
-    //     let graph = Graph::from(
-    //         10,
-    //         vec![
-    //             (3, 1),
-    //             (4, 1),
-    //             (5, 9),
-    //             (2, 6),
-    //             (5, 3),
-    //             (5, 8),
-    //             (9, 7),
-    //             (9, 3),
-    //             (2, 3),
-    //             (8, 4),
-    //             (6, 2),
-    //             (6, 4),
-    //             (3, 3),
-    //             (8, 3),
-    //             (2, 7),
-    //             (9, 5),
-    //             (0, 2),
-    //             (8, 8),
-    //             (4, 1),
-    //             (9, 7),
-    //             (1, 6),
-    //         ],
-    //     )
-    //     .unwrap();
-    //     assert_eq!(
-    //         SCC::on(&graph, VertexId(9))
-    //             .into_iter()
-    //             .collect::<Vec<Component>>(),
-    //         vec![
-    //             Component::from(vec![VertexId(9), VertexId(5)]),
-    //             Component::from(vec![
-    //                 VertexId(3),
-    //                 VertexId(1),
-    //                 VertexId(6),
-    //                 VertexId(2),
-    //                 VertexId(4)
-    //             ]),
-    //             Component::from(vec![VertexId(7)]),
-    //             Component::from(vec![VertexId(8)]),
-    //             Component::from(vec![VertexId(0)])
-    //         ]
-    //     );
-    // }
+    #[test]
+    fn works_on_knuth_example() {
+        let graph = Graph::from(
+            10,
+            vec![
+                (3, 1),
+                (4, 1),
+                (5, 9),
+                (2, 6),
+                (5, 3),
+                (5, 8),
+                (9, 7),
+                (9, 3),
+                (2, 3),
+                (8, 4),
+                (6, 2),
+                (6, 4),
+                (3, 3),
+                (8, 3),
+                (2, 7),
+                (9, 5),
+                (0, 2),
+                (8, 8),
+                (4, 1),
+                (9, 7),
+                (1, 6),
+            ],
+        )
+        .unwrap();
+        assert_eq!(
+            SCC::on(&graph).into_iter().collect::<Vec<Component>>(),
+            vec![
+                Component::from(vec![VertexId(7)]),
+                Component::from(vec![
+                    VertexId(6),
+                    VertexId(1),
+                    VertexId(4),
+                    VertexId(3),
+                    VertexId(2),
+                ]),
+                Component::from(vec![VertexId(0)]),
+                Component::from(vec![VertexId(8)]),
+                Component::from(vec![VertexId(5), VertexId(9)]),
+            ]
+        );
+    }
 }
