@@ -1,105 +1,20 @@
-use std::{
-    cmp,
-    collections::{HashMap, HashSet},
-};
+use std::collections::HashSet;
 
+use crate::algorithms::enumeration::detailed::{graph::DepthFirst, tree::DFSEntry};
 use crate::graph::{Graph, VertexId};
 
-use super::enumeration::detailed::{graph::DepthFirst, tree::DFSEntry};
+use super::stack::Stack;
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
-struct VertexIndex(usize);
-#[derive(Debug, PartialEq)]
-struct Vertex {
-    index: VertexIndex,
-    low_link: VertexIndex,
-}
-impl Vertex {
-    fn from(index: VertexIndex, low_link: VertexIndex) -> Self {
-        Self { index, low_link }
-    }
-    fn is_root(&self) -> bool {
-        self.index == self.low_link
-    }
-}
-struct SCCStack {
-    stack: Vec<VertexId>,
-    vertices: HashMap<VertexId, Vertex>,
-    next_vertex_index: VertexIndex,
-}
-impl SCCStack {
-    fn new() -> Self {
-        Self {
-            vertices: HashMap::new(),
-            stack: Vec::new(),
-            next_vertex_index: VertexIndex(0),
-        }
-    }
-    // is only called when vertex does not yet exist
-    fn push(&mut self, vertex: VertexId) {
-        self.vertices.insert(
-            vertex.clone(),
-            Vertex::from(self.next_vertex_index, self.next_vertex_index),
-        );
-        self.next_vertex_index = VertexIndex(self.next_vertex_index.0 + 1);
-        self.stack.push(vertex);
-    }
-    // is only called when vertex exists
-    fn update_with_minimum(&mut self, vertex_id: VertexId, update_id: VertexId) {
-        if let Some(update) = self.vertices.get(&update_id) {
-            let vertex = self.vertices.get(&vertex_id).unwrap();
-            self.vertices.insert(
-                vertex_id,
-                Vertex::from(vertex.index, cmp::min(vertex.low_link, update.low_link)),
-            );
-        }
-    }
-    // is only called when vertex exists
-    fn is_root(&self, vertex_id: &VertexId) -> bool {
-        self.vertices.get(vertex_id).unwrap().is_root()
-    }
-    // is only called when vertex exists
-    fn pop_until(&mut self, vertex: VertexId) -> Component {
-        let mut component = Component::new();
-        loop {
-            match self.stack.pop() {
-                None => panic!("Pop did not find vertex {vertex:?}"),
-                Some(v) => {
-                    self.vertices.remove(&v);
-                    component.add(v.clone());
-                    if v == vertex {
-                        return component;
-                    }
-                }
-            }
-        }
-    }
-}
-
-#[derive(Debug, PartialEq)]
-struct Component(HashSet<VertexId>);
-impl Component {
-    pub fn new() -> Self {
-        Self(HashSet::new())
-    }
-    pub fn from(vertices: Vec<VertexId>) -> Self {
-        Self(HashSet::from_iter(vertices))
-    }
-    pub fn add(&mut self, vertex: VertexId) {
-        self.0.insert(vertex);
-    }
-}
-
-struct SCC<'a> {
+pub struct SCC<'a> {
     dfs: DepthFirst<'a>,
-    unfinished_components: SCCStack,
+    unfinished_components: Stack,
 }
 
 impl<'a> SCC<'a> {
     pub fn on(graph: &'a Graph) -> Self {
         Self {
             dfs: DepthFirst::on(&graph),
-            unfinished_components: SCCStack::new(),
+            unfinished_components: Stack::new(),
         }
     }
 }
@@ -124,6 +39,20 @@ impl<'a> Iterator for SCC<'a> {
                 },
             }
         }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Component(HashSet<VertexId>);
+impl Component {
+    pub fn new() -> Self {
+        Self(HashSet::new())
+    }
+    pub fn from(vertices: Vec<VertexId>) -> Self {
+        Self(HashSet::from_iter(vertices))
+    }
+    pub fn add(&mut self, vertex: VertexId) {
+        self.0.insert(vertex);
     }
 }
 
@@ -261,11 +190,11 @@ mod tests {
             vec![
                 Component::from(vec![VertexId(7)]),
                 Component::from(vec![
-                    VertexId(6),
                     VertexId(1),
-                    VertexId(4),
-                    VertexId(3),
                     VertexId(2),
+                    VertexId(3),
+                    VertexId(4),
+                    VertexId(6),
                 ]),
                 Component::from(vec![VertexId(0)]),
                 Component::from(vec![VertexId(8)]),
