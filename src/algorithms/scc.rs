@@ -8,65 +8,64 @@ use crate::graph::{Graph, VertexId};
 use super::enumeration::detailed::{graph::DepthFirst, tree::DFSEntry};
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
-struct VertexComponent(usize);
+struct VertexIndex(usize);
 #[derive(Debug, PartialEq)]
 struct Vertex {
-    index: VertexComponent,
-    low_link: VertexComponent,
+    index: VertexIndex,
+    low_link: VertexIndex,
 }
 impl Vertex {
-    fn from(index: VertexComponent, component: VertexComponent) -> Self {
-        Self {
-            index,
-            low_link: component,
-        }
+    fn from(index: VertexIndex, low_link: VertexIndex) -> Self {
+        Self { index, low_link }
     }
     fn is_root(&self) -> bool {
         self.index == self.low_link
     }
 }
-struct HashStack {
-    hash: HashMap<VertexId, Vertex>,
+struct SCCStack {
     stack: Vec<VertexId>,
-    next_component: VertexComponent,
+    vertices: HashMap<VertexId, Vertex>,
+    next_vertex_index: VertexIndex,
 }
-impl HashStack {
+impl SCCStack {
     fn new() -> Self {
         Self {
-            hash: HashMap::new(),
+            vertices: HashMap::new(),
             stack: Vec::new(),
-            next_component: VertexComponent(0),
+            next_vertex_index: VertexIndex(0),
         }
     }
+    // is only called when vertex does not yet exist
     fn push(&mut self, vertex: VertexId) {
-        // TODO make sure that this is not already contained
-        self.hash.insert(
+        self.vertices.insert(
             vertex.clone(),
-            Vertex::from(self.next_component, self.next_component),
+            Vertex::from(self.next_vertex_index, self.next_vertex_index),
         );
-        self.next_component = VertexComponent(self.next_component.0 + 1);
+        self.next_vertex_index = VertexIndex(self.next_vertex_index.0 + 1);
         self.stack.push(vertex);
     }
+    // is only called when vertex exists
     fn update_with_minimum(&mut self, vertex_id: VertexId, update_id: VertexId) {
-        if let (Some(vertex), Some(update)) = (self.hash.get(&vertex_id), self.hash.get(&update_id))
-        {
-            self.hash.insert(
+        if let Some(update) = self.vertices.get(&update_id) {
+            let vertex = self.vertices.get(&vertex_id).unwrap();
+            self.vertices.insert(
                 vertex_id,
                 Vertex::from(vertex.index, cmp::min(vertex.low_link, update.low_link)),
             );
         }
     }
+    // is only called when vertex exists
     fn is_root(&self, vertex_id: &VertexId) -> bool {
-        // TODO error handling
-        self.hash.get(vertex_id).unwrap().is_root()
+        self.vertices.get(vertex_id).unwrap().is_root()
     }
+    // is only called when vertex exists
     fn pop_until(&mut self, vertex: VertexId) -> Component {
         let mut component = Component::new();
         loop {
             match self.stack.pop() {
-                None => return component, // TODO error?
+                None => panic!("Pop did not find vertex {vertex:?}"),
                 Some(v) => {
-                    self.hash.remove(&v);
+                    self.vertices.remove(&v);
                     component.add(v.clone());
                     if v == vertex {
                         return component;
@@ -92,17 +91,15 @@ impl Component {
 }
 
 struct SCC<'a> {
-    // make this a dfs that goes over full graph, not only tree
     dfs: DepthFirst<'a>,
-    unfinished_components: HashStack,
+    unfinished_components: SCCStack,
 }
 
 impl<'a> SCC<'a> {
-    // TODO get rid of vertex
     pub fn on(graph: &'a Graph) -> Self {
         Self {
             dfs: DepthFirst::on(&graph),
-            unfinished_components: HashStack::new(),
+            unfinished_components: SCCStack::new(),
         }
     }
 }
