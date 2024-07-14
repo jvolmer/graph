@@ -1,17 +1,17 @@
 pub mod algorithms;
 pub mod graph;
 
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
+#[doc = include_str!("../README.md")]
+#[cfg(doctest)]
+pub struct ReadmeDoctests;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+pub use crate::algorithms::enumeration::basic::graph::BreadthFirst as BreadthFirstOnGraph;
+pub use crate::algorithms::enumeration::basic::graph::DepthFirst as DepthFirstOnGraph;
+pub use crate::algorithms::enumeration::basic::tree::BreadthFirst as BreadthFirstOnTree;
+pub use crate::algorithms::enumeration::basic::tree::DepthFirst as DepthFirstOnTree;
+pub use crate::algorithms::enumeration::detailed::graph::DepthFirst as DetailedDepthFirstOnGraph;
+pub use crate::algorithms::enumeration::detailed::tree::{
+    DFSEntry, DepthFirst as DetailedDepthFirstOnTree,
+};
+pub use crate::algorithms::scc::algorithm::{Component, SCC};
+pub use crate::graph::{Edge, Graph, VertexId};
