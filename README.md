@@ -1,5 +1,7 @@
 # Comprehensive Graph Analytics Algorithms
 
+[![Coverage](https://codecov.io/gh/jvolmer/graph/branch/main/graph/badge.svg)](https://codecov.io/gh/jvolmer/graph) [![Build](https://github.com/jvolmer/graph/actions/workflows/ci.yml/badge.svg)](https://github.com/jvolmer/graph/actions/workflows/ci.yml)
+
 Algorithms for analyzing data in a graph. The purpose of this crate is to document algorithms comprehensibly rather than to focus on the best performance possible.
 
 ## Motivation

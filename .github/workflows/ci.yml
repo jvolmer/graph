@@ -1,0 +1,30 @@
+name: CI
+
+on: [push]
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint
+        run: |
+          cargo clippy
+          cargo fmt --check
+      - name: Build
+        run: cargo build
+      - name: run tests
+        run: |
+          rustup component add llvm-tools-preview
+          CARGO_INCREMENTAL=0 RUSTFLAGS='-Cinstrument-coverage' cargo test --verbose
+      - name: Create coverate report
+        run: |
+          cargo install grcov
+          grcov . -s . --binary-path ./target/debug/ -t html --branch --keep-only 'src/*' -o target/coverage/
+          grcov . -s . --binary-path ./target/debug/ -t lcov --branch --keep-only 'src/*' -o target/coverage/
+      - name: Upload report to codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: target/coverage/*lcov
