@@ -6,8 +6,7 @@ Algorithms for analyzing data in a graph. The purpose of this crate is to docume
 
 ## Motivation
 
-Algorithms are often hard to understand and their implementation is most of the time even harder to comprehend. Performance plays a significant role when implementing algorithms, which often results in adding additional tweaks to the implementation, making it even harder to read and obsuring the main algorithm idea.
-But although an algorithm is complicated does not mean the code has to be unreadable. Code can abstract away details, show the main idea of an algorithm first and hide the details in abstractions. I wanted to learn some graph algorithms and implement them in a way that I can still understand them in some months / years and hopefully these implementations can help others as well. The implementations are therefore not focused on the best performance but on readability. I also tried to create an easy user interface. There will probably be more algorithms to come.
+Algorithms and their implementation can often be hard to comprehend. But although an algorithm is complicated does not mean the code has to be unreadable: Abstractions help us to focus on the main ideas and to hide details. I wanted to learn some graph algorithms and implemented them in such a way that I can (hopefully) still understand them in some months / years. The implementations focus on readability and the core algorithm ideas rather than performance. I also tried to create an easy user interface. There will probably be more algorithms to come.
 
 ## Overview
 
