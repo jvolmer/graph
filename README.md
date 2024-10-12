@@ -15,6 +15,8 @@ Algorithms:
 - [x] Breadth First Search on a single tree and on full graph
 - [x] Strongly connected components
 - [ ] Weakly connected components
+- [ ] Shortest Path
+- [ ] K-Shortest Paths
 - [ ] ...
 
 ## Examples
