@@ -150,6 +150,10 @@ impl Graph {
     pub fn vertices(&self) -> impl Iterator<Item = &VertexId> {
         self.vertices.iter()
     }
+
+    pub fn edges(&self) -> impl Iterator<Item = &Edge> {
+        self.edges.iter()
+    }
 }
 
 #[cfg(test)]

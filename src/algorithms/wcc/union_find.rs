@@ -10,34 +10,18 @@ use std::collections::HashMap;
 
 use crate::graph::VertexId;
 
-#[derive(Debug, PartialEq, Clone)]
-enum Node {
-    TreeRoot(usize),
-    DecendentOf(VertexId),
-}
-
 #[derive(Debug, PartialEq)]
-struct Component {
-    id: VertexId,
-    size: usize,
-}
-
-#[derive(Debug, PartialEq)]
-struct UnionFind {
-    list: HashMap<VertexId, Node>,
-}
-#[derive(Debug, PartialEq)]
-enum Error {
-    VertexNotIncluded(VertexId),
+pub struct UnionFind {
+    pub list: HashMap<VertexId, Node>,
 }
 
 impl UnionFind {
-    fn new(vertices: impl Iterator<Item = VertexId>) -> Self {
+    pub fn new(vertices: impl Iterator<Item = VertexId>) -> Self {
         Self {
             list: HashMap::from_iter(vertices.map(|v| (v.clone(), Node::TreeRoot(1)))),
         }
     }
-    fn find(&self, id: VertexId) -> Result<Component, Error> {
+    pub fn find(&self, id: VertexId) -> Result<Component, Error> {
         let x = self
             .list
             .get(&id)
@@ -48,7 +32,7 @@ impl UnionFind {
         }
     }
 
-    fn union(&mut self, x: VertexId, y: VertexId) -> Result<(), Error> {
+    pub fn union(&mut self, x: VertexId, y: VertexId) -> Result<(), Error> {
         match (self.find(x), self.find(y)) {
             (
                 Ok(Component {
@@ -75,6 +59,30 @@ impl UnionFind {
             (_, Err(e)) => return Err(e),
         }
     }
+
+    pub fn all_components(&self) -> Result<Vec<(Component>, Error> {
+        self.list
+            .iter()
+            .map(|(v, _)| (v.clone(), self.find(v.clone())))
+            .collect()
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+enum Node {
+    TreeRoot(usize),
+    DecendentOf(VertexId),
+}
+
+#[derive(Debug, PartialEq)]
+struct Component {
+    id: VertexId,
+    size: usize,
+}
+
+#[derive(Debug, PartialEq)]
+enum Error {
+    VertexNotIncluded(VertexId),
 }
 
 #[cfg(test)]
