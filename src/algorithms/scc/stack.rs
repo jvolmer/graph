@@ -2,7 +2,7 @@ use std::{cmp, collections::HashMap};
 
 use crate::graph::VertexId;
 
-use super::algorithm::Component;
+use crate::algorithms::component::Component;
 
 pub struct Stack {
     stack: Vec<VertexId>,
