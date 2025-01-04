@@ -8,54 +8,37 @@
 ///! Another improvement that could be implemented: path compression in find fn
 use std::collections::HashMap;
 
-use crate::graph::VertexId;
-
-#[derive(Debug, PartialEq, Clone)]
-enum Node {
-    TreeRoot(usize),
-    DecendentOf(VertexId),
-}
+use crate::{algorithms::component::Component, graph::VertexId};
 
 #[derive(Debug, PartialEq)]
-struct Component {
-    id: VertexId,
-    size: usize,
-}
-
-#[derive(Debug, PartialEq)]
-struct UnionFind {
+pub struct UnionFind {
     list: HashMap<VertexId, Node>,
-}
-#[derive(Debug, PartialEq)]
-enum Error {
-    VertexNotIncluded(VertexId),
 }
 
 impl UnionFind {
-    fn new(vertices: impl Iterator<Item = VertexId>) -> Self {
-        Self {
-            list: HashMap::from_iter(vertices.map(|v| (v.clone(), Node::TreeRoot(1)))),
-        }
+    pub fn new(vertices: impl Iterator<Item = VertexId>) -> Self {
+        let list = HashMap::from_iter(vertices.map(|v| (v.clone(), Node::TreeRoot(1))));
+        Self { list }
     }
-    fn find(&self, id: VertexId) -> Result<Component, Error> {
+    fn find(&self, id: VertexId) -> Result<ComponentId, Error> {
         let x = self
             .list
             .get(&id)
             .ok_or(Error::VertexNotIncluded(id.clone()))?;
         match x.clone() {
-            Node::TreeRoot(size) => return Ok(Component { id, size }),
+            Node::TreeRoot(size) => return Ok(ComponentId { id, size }),
             Node::DecendentOf(id) => return self.find(id),
         }
     }
 
-    fn union(&mut self, x: VertexId, y: VertexId) -> Result<(), Error> {
+    pub fn union(&mut self, x: VertexId, y: VertexId) -> Result<(), Error> {
         match (self.find(x), self.find(y)) {
             (
-                Ok(Component {
+                Ok(ComponentId {
                     id: xroot,
                     size: xsize,
                 }),
-                Ok(Component {
+                Ok(ComponentId {
                     id: yroot,
                     size: ysize,
                 }),
@@ -75,6 +58,40 @@ impl UnionFind {
             (_, Err(e)) => return Err(e),
         }
     }
+
+    pub fn all_components(&self) -> impl Iterator<Item = Component> {
+        self.list
+            .iter()
+            .map(|(v, _)| (v, self.find(v.clone())))
+            .fold(
+                HashMap::new(),
+                |mut acc: HashMap<VertexId, Component>, (vertex_id, component_id)| {
+                    acc.entry(component_id.unwrap().id)
+                        .and_modify(|component| component.add(vertex_id.clone()))
+                        .or_insert(Component::from(vec![vertex_id.clone()]));
+                    acc
+                },
+            )
+            .into_iter()
+            .map(|(_, component)| component)
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+enum Node {
+    TreeRoot(usize),
+    DecendentOf(VertexId),
+}
+
+#[derive(Debug, PartialEq)]
+struct ComponentId {
+    pub id: VertexId,
+    size: usize,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Error {
+    VertexNotIncluded(VertexId),
 }
 
 #[cfg(test)]
@@ -86,7 +103,7 @@ mod tests {
         let union_find = UnionFind::new(vec![VertexId(1)].into_iter());
         assert_eq!(
             union_find.find(VertexId(1)),
-            Ok(Component {
+            Ok(ComponentId {
                 id: VertexId(1),
                 size: 1
             })
@@ -99,7 +116,7 @@ mod tests {
             UnionFind::new(vec![VertexId(1), VertexId(3), VertexId(5), VertexId(2)].into_iter());
         assert_eq!(
             union_find.find(VertexId(5)),
-            Ok(Component {
+            Ok(ComponentId {
                 id: VertexId(5),
                 size: 1
             })
